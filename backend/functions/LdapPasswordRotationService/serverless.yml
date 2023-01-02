@@ -1,0 +1,94 @@
+service: datalake-ldap-pw-rotation
+
+frameworkVersion: "3"
+
+plugins:
+  - serverless-export-env
+
+package:
+  individually: true
+  patterns:
+    - "!.venv/**"
+    - "!node_modules/**"
+    - "!config/**"
+    - "!requirements.txt"
+    - "!package.json"
+    - "!package-lock.json"
+    - "!Makefile"
+    - "!Pipfile"
+    - "!Pipfile.lock"
+
+provider:
+  name: aws
+  runtime: python3.9
+  timeout: 30
+  logRetentionInDays: 14
+  stage: ${opt:stage, 'dev'}
+  region: eu-central-1
+  deploymentBucket:
+    name: serverless-deployment-${self:provider.region}-vt-${self:provider.stage}
+    serverSideEncryption: AES256
+  environment:
+    SERVICE: ${self:service}
+    STAGE: ${self:provider.stage}
+    VPC_ID: ${self:custom.file.VPC_ID}
+  vpc:
+    securityGroupIds:
+      - Ref: LambdaSecurityGroup
+    subnetIds:
+      - ${self:custom.file.SUBNET1_ID}
+      - ${self:custom.file.SUBNET2_ID}
+  endpointType: PRIVATE
+  vpcEndpointIds:
+    - ${self:custom.file.VPC_ENDPOINT_ID}
+  iam:
+    role:
+      managedPolicies:
+        - "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+      statements:
+        - Effect: "Allow"
+          Action: "s3:ListBucket"
+          Resource: "arn:aws:s3:::datalake-infrastructure-vt-${self:provider.stage}"
+
+custom:
+  file: ${file(./config/serverless.${self:provider.stage}.yml)}
+  prune:
+    automatic: true
+    number: 10
+
+layers:
+  ldappw:
+    path: layer
+    compatibleRuntimes:
+      - python3.7
+      - python3.8
+      - python3.9
+    compatibleArchitectures:
+      - x86_64
+      - arm64
+
+functions:
+  app:
+    handler: src.lambda_function.lambda_handler
+    layers:
+      - Ref: LdappwLambdaLayer
+    environment:
+      STAGE: ${self:provider.stage}
+
+resources:
+  Resources:
+    LambdaSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Service Lambda function
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            CidrIp: 0.0.0.0/0
+        SecurityGroupIngress:
+          - IpProtocol: -1
+            CidrIp: 10.0.0.0/8
+          - IpProtocol: -1
+            CidrIp: 172.16.0.0/12
+          - IpProtocol: -1
+            CidrIp: 192.168.0.0/16
+        VpcId: ${self:custom.file.VPC_ID}

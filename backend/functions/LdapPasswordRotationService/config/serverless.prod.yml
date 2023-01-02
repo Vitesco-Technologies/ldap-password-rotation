@@ -1,0 +1,4 @@
+VPC_ID: vpc-0d43eda6a96215a22 # vpc_id
+SUBNET1_ID: subnet-02ecfbaf8709fc021 # the subnets of the vpc
+SUBNET2_ID: subnet-065e73e2c2ee20d2c # the subnets of the vpc
+VPC_ENDPOINT_ID: "vpce-05a509106306d20ad"
