@@ -10,13 +10,14 @@ logger.setLevel(logging.INFO)
 
 DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "user"
 DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
-DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_EMAIL") or "email"
+DICT_KEY_EMAIL = os.environ.get("DICT_KEY_EMAIL") or "email"
 DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_BIND_DN") or "ldap_default_bind_dn"
-DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_AUTHTOK") or "ldap_default_authtok"
+DICT_KEY_OBFUSCATED_PASSWORD = os.environ.get(
+    "DICT_KEY_OBFUSCATED_PASSWORD") or "obfuscated_password"
 
 SECRETS_MANAGER_ENDPOINT = os.environ.get(
     "SECRETS_MANAGER_ENDPOINT") or "https://secretsmanager.eu-central-1.amazonaws.com"
-EXCLUDE_CHARACTERS = os.environ.get("EXCLUDE_CHARACTERS") or "/@'\"\\"
+EXCLUDE_CHARACTERS = os.environ.get("EXCLUDE_CHARACTERS") or "/'\"\\"
 LDAP_SERVER_NAME = os.environ.get(
     "LDAP_SERVER_NAME") or "ldaps://vt1dceuc1001.vt1.vitesco.com:636"
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
@@ -129,11 +130,9 @@ def create_secret(secrets_manager_client, arn, token, current_dict, ldap_server)
         get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         logger.info("createSecret: Successfully retrieved secret for %s." % arn)
     except secrets_manager_client.exceptions.ResourceNotFoundException:
-        # Get exclude characters from environment variable
-        exclude_characters = os.environ.get("EXCLUDE_CHARACTERS", EXCLUDE_CHARACTERS)
         # Generate a random password
         passwd = secrets_manager_client.get_random_password(
-            ExcludeCharacters=exclude_characters)
+            ExcludeCharacters=EXCLUDE_CHARACTERS)
         current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
 
         # Put the secret
@@ -296,9 +295,10 @@ def execute_ldap_command(current_dict, pending_dict, ldap_server):
     if pending_dict is not None:
         # First try to log in with the AWSPENDING password and if that is
         # successful, immediately return.
-        username, password = check_inputs(pending_dict)
+        username, password, email, bind_dn, obfuscated_password = check_inputs(
+            pending_dict)
         try:
-            conn = Connection(ldap_server, user=username, password=password)
+            conn = Connection(ldap_server, user=email, password=password)
             conn.bind()
             if conn.result.get('result') == 0:
                 return LDAP_BIND_PENDING_CREDS_SUCCESSFUL
@@ -320,10 +320,9 @@ def execute_ldap_command(current_dict, pending_dict, ldap_server):
         logger.error("execute_ldap_command: Unexpected value for current_dict")
         raise ValueError("execute_ldap_command: Unexpected value for current_dict")
 
+    username, password, email, bind_dn, obfuscated_password = check_inputs(current_dict)
     try:
-        username, password = check_inputs(current_dict)
-
-        conn = Connection(ldap_server, user=username, password=password)
+        conn = Connection(ldap_server, user=email, password=password)
         conn.bind()
         if conn.result.get('result') == 0:
             return LDAP_BIND_CURRENT_CREDS_SUCCESSFUL
@@ -350,6 +349,10 @@ def check_inputs(dict_arg):
     """
     username = dict_arg[DICT_KEY_USERNAME]
     password = dict_arg[DICT_KEY_PASSWORD]
+    # Optional fields
+    email = dict_arg.get(DICT_KEY_EMAIL) or None
+    bind_dn = dict_arg.get(DICT_KEY_BIND_DN) or None
+    obfuscated_password = dict_arg.get(DICT_KEY_OBFUSCATED_PASSWORD) or None
 
     username_check_list = [char in username for char in EXCLUDE_CHARACTERS]
     if True in username_check_list:
@@ -359,7 +362,7 @@ def check_inputs(dict_arg):
     if True in password_check_list:
         raise ValueError("check_inputs: Invalid character in password")
 
-    return username, password
+    return username, password, email, bind_dn, obfuscated_password
 
 
 if __name__ == "__main__":
