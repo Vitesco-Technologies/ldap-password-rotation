@@ -167,7 +167,7 @@ def set_secret(current_dict, pending_dict, ldap_server):
     """
 
     # Make sure current or pending credentials work
-    status = execute_ldap_command(current_dict, None, ldap_server)
+    status = execute_ldap_command(current_dict, pending_dict, ldap_server)
     # Cover the case where this step has already succeeded and
     # AWSCURRENT is no longer the current password, try to log in
     # with the AWSPENDING password and if that is successful, immediately
@@ -176,8 +176,20 @@ def set_secret(current_dict, pending_dict, ldap_server):
         return
 
     try:
-        # TODO: ldap3.extend.microsoft.modifyPassword.ad_modify_password(conn, USER_DN, NEWPWD, CURREENTPWD,  controls=None)
-        print("TODO: Change AD password")
+        _, password, email, bind_dn, _ = check_inputs(current_dict)
+        _, new_password, _, _, _ = check_inputs(pending_dict)
+        conn = Connection(ldap_server, user=email, password=password)
+        conn.bind()
+        if conn.result.get('result') == 0:
+            extend.microsoft.modifyPassword.ad_modify_password(conn,
+                                                               bind_dn,
+                                                               new_password,
+                                                               password,
+                                                               controls=None)
+        else:
+            raise ValueError(
+                f"ldap bind failed! Connection result: {conn.result.get('result')}, description: {conn.result.get('description')}"
+            )
     except Exception as e:
         logger.error("setSecret: Unable to reset the users password in Directory "
                      f"Services user {pending_dict[DICT_KEY_USERNAME]}")
