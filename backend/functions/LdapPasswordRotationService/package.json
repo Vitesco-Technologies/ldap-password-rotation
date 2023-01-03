@@ -6,8 +6,6 @@
     "author": "daniel.dias@vitesco.com",
     "devDependencies": {
         "serverless": "^3.26.0",
-        "serverless-export-env": "^2.2.0",
-        "serverless-prune-plugin": "^2.0.1",
-        "serverless-python-requirements": "^5.4.0"
+        "serverless-prune-plugin": "^2.0.1"
     }
 }

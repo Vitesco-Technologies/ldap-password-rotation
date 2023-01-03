@@ -3,7 +3,7 @@ service: datalake-ldap-pw-rotation
 frameworkVersion: "3"
 
 plugins:
-  - serverless-export-env
+  - serverless-prune-plugin
 
 package:
   individually: true

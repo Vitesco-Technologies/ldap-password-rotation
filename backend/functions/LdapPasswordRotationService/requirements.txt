@@ -1,9 +1,0 @@
-boto3==1.26.41
-botocore==1.29.41
-jmespath==1.0.1
-ldap3==2.9.1
-pyasn1==0.4.8
-python-dateutil==2.8.2
-s3transfer==0.6.0
-six==1.16.0
-urllib3==1.26.13
