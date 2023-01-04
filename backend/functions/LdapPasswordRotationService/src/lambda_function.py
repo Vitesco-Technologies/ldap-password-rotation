@@ -42,7 +42,7 @@ def lambda_handler(event, context):
     token = event['ClientRequestToken']
     step = event['Step']
 
-    logger.info(f"event: {event} for step: {step}.")
+    logger.info(f"Step: {step}.")
 
     # TODO: Set ldap3 Server and Tls instead of server string.
     ldap_server = LDAP_SERVER_NAME
@@ -61,25 +61,25 @@ def lambda_handler(event, context):
     # Make sure the version is staged correctly
     metadata = secrets_manager_client.describe_secret(SecretId=arn)
     if not metadata['RotationEnabled']:
-        logger.error("Secret %s is not enabled for rotation" % arn)
-        raise ValueError("Secret %s is not enabled for rotation" % arn)
+        logger.error(f"Secret {arn} is not enabled for rotation")
+        raise ValueError(f"Secret {arn} is not enabled for rotation")
     versions = metadata['VersionIdsToStages']
     if token not in versions:
-        logger.error("Secret version %s has no stage for rotation of secret %s." %
-                     (token, arn))
-        raise ValueError("Secret version %s has no stage for rotation of secret %s." %
-                         (token, arn))
+        logger.error(
+            f"Secret version {token} has no stage for rotation of secret {arn}.")
+        raise ValueError(
+            f"Secret version {token} has no stage for rotation of secret {arn}.")
     if "AWSCURRENT" in versions[token]:
-        logger.info("Secret version %s already set as AWSCURRENT for secret %s." %
-                    (token, arn))
+        logger.info(
+            f"Secret version {token} already set as AWSCURRENT for secret {arn}.")
         return
     elif "AWSPENDING" not in versions[token]:
         logger.error(
-            "Secret version %s not set as AWSPENDING for rotation of secret %s." %
-            (token, arn))
+            f"Secret version {token} not set as AWSPENDING for rotation of secret {arn}."
+        )
         raise ValueError(
-            "Secret version %s not set as AWSPENDING for rotation of secret %s." %
-            (token, arn))
+            f"Secret version {token} not set as AWSPENDING for rotation of secret {arn}."
+        )
 
     current_dict = get_secret_dict(secrets_manager_client, arn, "AWSCURRENT")
 
@@ -91,13 +91,13 @@ def lambda_handler(event, context):
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         if current_dict[DICT_KEY_USERNAME] != pending_dict[DICT_KEY_USERNAME]:
             logger.error(
-                "Username %s in current dict does not match username %s in "
-                "pending dict" %
-                (current_dict[DICT_KEY_USERNAME], pending_dict[DICT_KEY_USERNAME]))
+                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict "
+                f"does not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+            )
             raise ValueError(
-                "Username %s in current dict does not match username %s in "
-                "pending dict" %
-                (current_dict[DICT_KEY_USERNAME], pending_dict[DICT_KEY_USERNAME]))
+                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict "
+                f"does not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+            )
         set_secret(current_dict, pending_dict, ldap_server)
 
     elif step == "testSecret":
@@ -128,7 +128,7 @@ def create_secret(secrets_manager_client, arn, token, current_dict, ldap_server)
     # Now try to get the secret version, if that fails, put a new secret
     try:
         get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
-        logger.info("createSecret: Successfully retrieved secret for %s." % arn)
+        logger.info(f"createSecret: Successfully retrieved secret for {arn}.")
     except secrets_manager_client.exceptions.ResourceNotFoundException:
         # Generate a random password
         passwd = secrets_manager_client.get_random_password(
@@ -142,8 +142,8 @@ def create_secret(secrets_manager_client, arn, token, current_dict, ldap_server)
             SecretString=json.dumps(current_dict),
             VersionStages=["AWSPENDING"],
         )
-        logger.info("createSecret: Successfully put secret for ARN %s and version %s." %
-                    (arn, token))
+        logger.info(
+            f"createSecret: Successfully put secret for ARN {arn} and version {token}.")
 
 
 def set_secret(current_dict, pending_dict, ldap_server):
@@ -230,8 +230,8 @@ def finish_secret(secrets_manager_client, arn, token):
             if version == token:
                 # The correct version is already marked as current, return
                 logger.info(
-                    "finishSecret: Version %s already marked as AWSCURRENT for %s" %
-                    (version, arn))
+                    f"finishSecret: Version {version} already marked as AWSCURRENT for {arn}"
+                )
                 return
             current_version = version
             break
@@ -243,8 +243,8 @@ def finish_secret(secrets_manager_client, arn, token):
         MoveToVersionId=token,
         RemoveFromVersionId=current_version)
     logger.info(
-        "finishSecret: Successfully set AWSCURRENT stage to version %s for secret %s." %
-        (token, arn))
+        f"finishSecret: Successfully set AWSCURRENT stage to version {token} for secret {arn}."
+    )
 
 
 def get_secret_dict(secrets_manager_client, arn, stage, token=None):
@@ -282,7 +282,7 @@ def get_secret_dict(secrets_manager_client, arn, stage, token=None):
 
     for field in required_fields:
         if field not in secret_dict:
-            raise KeyError("%s key is missing from secret JSON" % field)
+            raise KeyError(f"{field} key is missing from secret JSON")
 
     # Parse and return the secret JSON string
     return secret_dict
@@ -340,8 +340,8 @@ def execute_ldap_command(current_dict, pending_dict, ldap_server):
             return LDAP_BIND_CURRENT_CREDS_SUCCESSFUL
         else:
             raise ValueError(
-                f"ldap bind failed! Connection result: {conn.result.get('result')}, description: {conn.result.get('description')}"
-            )
+                f"ldap bind failed! Connection result: {conn.result.get('result')}, "
+                f"description: {conn.result.get('description')}")
     except Exception as e:
         logger.error("execute_ldap_command: ldap bind failed")
         logger.error(e)
