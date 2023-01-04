@@ -8,25 +8,29 @@ from ldap3 import Connection, Server, extend
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "user"
+DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "username"
 DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
-DICT_KEY_EMAIL = os.environ.get("DICT_KEY_EMAIL") or "email"
+DICT_KEY_USERPRINCIPALNAME = os.environ.get(
+    "DICT_KEY_USERPRINCIPALNAME") or "userPrincipalName"
 DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_BIND_DN") or "ldap_default_bind_dn"
-DICT_KEY_OBFUSCATED_PASSWORD = os.environ.get(
-    "DICT_KEY_OBFUSCATED_PASSWORD") or "obfuscated_password"
 
 SECRETS_MANAGER_ENDPOINT = os.environ.get(
     "SECRETS_MANAGER_ENDPOINT") or "https://secretsmanager.eu-central-1.amazonaws.com"
 EXCLUDE_CHARACTERS = os.environ.get("EXCLUDE_CHARACTERS") or "/'\"\\"
-LDAP_SERVER_NAME = os.environ.get(
-    "LDAP_SERVER_NAME") or "ldaps://vt1dceuc1001.vt1.vitesco.com:636"
+LDAP_SERVER_LIST = os.environ.get(
+    "LDAP_SERVER_LIST"
+) or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'
+LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
 LDAP_BIND_PENDING_CREDS_SUCCESSFUL = "LDAP_BIND_USING_PENDING_CREDS_SUCCESSFUL"
 
 
 def lambda_handler(event, context):
-    """Secrets Manager Rotation Template
+    """Secrets Manager Rotation LDAP
     Rotates a password for a LDAP user account. This is the main lambda entry point.
+    This rotation lambda expects the secret in the secrets manager to include at least the user and password.
+    In addition, the user has to be available in the format of userPrincipalName or distinguishedName.
+    You can include additional fields, which will be kept unchanged after the password rotation.
     Args:
         event (dict): Lambda dictionary of event parameters. These keys must include the following:
             - SecretId: The secret ARN or identifier
@@ -38,25 +42,17 @@ def lambda_handler(event, context):
         ValueError: If the secret is not properly configured for rotation
         KeyError: If the event parameters do not contain the expected keys
     """
+    logger.info(f"### Current Event: {event}. ###")
+
     arn = event['SecretId']
     token = event['ClientRequestToken']
     step = event['Step']
 
-    logger.info(f"Step: {step}.")
-
-    # TODO: Set ldap3 Server and Tls instead of server string.
-    ldap_server = LDAP_SERVER_NAME
+    logger.info(f"### Current Step: {step}. ###")
 
     # Setup the client
     secrets_manager_client = boto3.client('secretsmanager',
                                           endpoint_url=SECRETS_MANAGER_ENDPOINT)
-
-    if step == "test":
-        current_dict = get_secret_dict(secrets_manager_client, arn, "AWSCURRENT")
-        print(current_dict)
-        status = execute_ldap_command(current_dict, None, ldap_server)
-        print(status)
-        return
 
     # Make sure the version is staged correctly
     metadata = secrets_manager_client.describe_secret(SecretId=arn)
@@ -84,7 +80,7 @@ def lambda_handler(event, context):
     current_dict = get_secret_dict(secrets_manager_client, arn, "AWSCURRENT")
 
     if step == "createSecret":
-        create_secret(secrets_manager_client, arn, token, current_dict, ldap_server)
+        create_secret(secrets_manager_client, arn, token, current_dict)
 
     elif step == "setSecret":
         # Get the pending secret and update password in Directory Services
@@ -98,11 +94,11 @@ def lambda_handler(event, context):
                 f"Username {current_dict[DICT_KEY_USERNAME]} in current dict "
                 f"does not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
             )
-        set_secret(current_dict, pending_dict, ldap_server)
+        set_secret(current_dict, pending_dict)
 
     elif step == "testSecret":
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
-        test_secret(pending_dict, ldap_server)
+        test_secret(pending_dict)
 
     elif step == "finishSecret":
         finish_secret(secrets_manager_client, arn, token)
@@ -111,7 +107,7 @@ def lambda_handler(event, context):
         raise ValueError("Invalid step parameter")
 
 
-def create_secret(secrets_manager_client, arn, token, current_dict, ldap_server):
+def create_secret(secrets_manager_client, arn, token, current_dict):
     """Create the secret
     This method first checks for the existence of a secret for the passed in token. If one does not exist, it will generate a
     new secret and put it with the passed in token.
@@ -119,11 +115,12 @@ def create_secret(secrets_manager_client, arn, token, current_dict, ldap_server)
         secrets_manager_client (client): The secrets manager service client
         arn (string): The secret ARN or other identifier
         token (string): The ClientRequestToken associated with the secret version
+        current_dict (dictionary): Used to validate the current credentials and generate the new AWSPENDING SecretString
     Raises:
         ResourceNotFoundException: If the secret with the specified arn and stage does not exist
     """
     # Exception if ldap binding fails for the current credentials
-    execute_ldap_command(current_dict, None, ldap_server)
+    execute_ldap_command(current_dict, None)
 
     # Now try to get the secret version, if that fails, put a new secret
     try:
@@ -146,19 +143,15 @@ def create_secret(secrets_manager_client, arn, token, current_dict, ldap_server)
             f"createSecret: Successfully put secret for ARN {arn} and version {token}.")
 
 
-def set_secret(current_dict, pending_dict, ldap_server):
+def set_secret(current_dict, pending_dict):
     """
-    Set the secret in Directory Services. This is the second step, where Directory Services is actually updated. 
-    This method does not update the Secret Manager label. Therefore, the AWSCURRENT secret does not match the password in Directory 
+    Set the secret in Directory Services. This is the second step, where Directory Services is actually updated.
+    This method does not update the Secret Manager label. Therefore, the AWSCURRENT secret does not match the password in Directory
     Services as the end of this step. We are technically in a broken state at the end of this step.
     It will be fixed in the finishSecret step when the Secrets Manager value is updated.
     Args:
         current_dict (dictionary): Used for ldap operations
         pending_dict (dictionary): Used to reset Directory Services password
-        ldap_server (ldap3.Server or string): The Server object to be contacted. It can be a ServerPool.
-        In this case the ServerPool pooling strategy is followed when opening the connection.
-        You can also pass a string containing the name of the server.
-        In this case the Server object is implicitly created with default values.
     Raises:
         ResourceNotFoundException: If the secret with the specified arn and stage does not exist
         ValueError: If the secret is not valid JSON or unable to set password in Directory Services
@@ -167,25 +160,27 @@ def set_secret(current_dict, pending_dict, ldap_server):
     """
 
     # Make sure current or pending credentials work
-    status = execute_ldap_command(current_dict, pending_dict, ldap_server)
+    logger.info("setSecret: Checking if the new credentials are already active.")
+    status = execute_ldap_command(current_dict, pending_dict)
     # Cover the case where this step has already succeeded and
     # AWSCURRENT is no longer the current password, try to log in
     # with the AWSPENDING password and if that is successful, immediately
     # return.
     if status == LDAP_BIND_PENDING_CREDS_SUCCESSFUL:
+        logger.info(
+            "setSecret: Skipping the setSecret step, since the new credentials are already valid."
+        )
         return
 
     try:
-        _, password, email, bind_dn, _ = check_inputs(current_dict)
-        _, new_password, _, _, _ = check_inputs(pending_dict)
-        conn = Connection(ldap_server, user=email, password=password)
+        _, old_password, _, _ = check_inputs(current_dict)
+        _, new_password, _, _ = check_inputs(pending_dict)
+        bind_user = check_bind_user(pending_dict)
+        conn = ldap_connection(current_dict)
         conn.bind()
         if conn.result.get('result') == 0:
-            extend.microsoft.modifyPassword.ad_modify_password(conn,
-                                                               bind_dn,
-                                                               new_password,
-                                                               password,
-                                                               controls=None)
+            extend.microsoft.modifyPassword.ad_modify_password(
+                conn, bind_user, new_password=new_password, old_password=old_password)
         else:
             raise ValueError(
                 f"ldap bind failed! Connection result: {conn.result.get('result')}, description: {conn.result.get('description')}"
@@ -198,18 +193,14 @@ def set_secret(current_dict, pending_dict, ldap_server):
             "Unable to reset the users password in Directory Services") from Exception
 
 
-def test_secret(pending_dict, ldap_server):
+def test_secret(pending_dict):
     """
     Args:
         pending_dict (dictionary): Used to test pending credentials
-        ldap_server (ldap3.Server or string): The Server object to be contacted. It can be a ServerPool.
-        In this case the ServerPool pooling strategy is followed when opening the connection.
-        You can also pass a string containing the name of the server.
-        In this case the Server object is implicitly created with default values.
     Raises:
         ValueError: Raise exception if kinit fails with given credentials
     """
-    execute_ldap_command(None, pending_dict, ldap_server)
+    execute_ldap_command(None, pending_dict)
 
 
 def finish_secret(secrets_manager_client, arn, token):
@@ -258,9 +249,9 @@ def get_secret_dict(secrets_manager_client, arn, stage, token=None):
     Args:
         secrets_manager_client (client): The secrets manager service client
         arn (string): The secret ARN or other identifier
+        stage (string): The stage identifying the secret version
         token (string): The ClientRequestToken associated with the secret
         version, or None if no validation is desired
-        stage (string): The stage identifying the secret version
     Returns:
         SecretDictionary: Secret dictionary
     Raises:
@@ -288,16 +279,12 @@ def get_secret_dict(secrets_manager_client, arn, stage, token=None):
     return secret_dict
 
 
-def execute_ldap_command(current_dict, pending_dict, ldap_server):
+def execute_ldap_command(current_dict, pending_dict):
     """
     Executes the ldap command to verify user credentials.
     Args:
         current_dict (dictionary): Dictionary containing current credentials
         pending_dict (dictionary): Dictionary containing pending credentials
-        ldap_server (ldap3.Server or string): The Server object to be contacted. It can be a ServerPool.
-        In this case the ServerPool pooling strategy is followed when opening the connection.
-        You can also pass a string containing the name of the server.
-        In this case the Server object is implicitly created with default values.
     Returns:
         ldap_creds_successful or raises exception
     Raises:
@@ -307,10 +294,8 @@ def execute_ldap_command(current_dict, pending_dict, ldap_server):
     if pending_dict is not None:
         # First try to log in with the AWSPENDING password and if that is
         # successful, immediately return.
-        username, password, email, bind_dn, obfuscated_password = check_inputs(
-            pending_dict)
         try:
-            conn = Connection(ldap_server, user=email, password=password)
+            conn = ldap_connection(pending_dict)
             conn.bind()
             if conn.result.get('result') == 0:
                 return LDAP_BIND_PENDING_CREDS_SUCCESSFUL
@@ -332,9 +317,8 @@ def execute_ldap_command(current_dict, pending_dict, ldap_server):
         logger.error("execute_ldap_command: Unexpected value for current_dict")
         raise ValueError("execute_ldap_command: Unexpected value for current_dict")
 
-    username, password, email, bind_dn, obfuscated_password = check_inputs(current_dict)
     try:
-        conn = Connection(ldap_server, user=email, password=password)
+        conn = ldap_connection(current_dict)
         conn.bind()
         if conn.result.get('result') == 0:
             return LDAP_BIND_CURRENT_CREDS_SUCCESSFUL
@@ -356,15 +340,16 @@ def check_inputs(dict_arg):
     Returns:
         username(string): Username from Directory Service
         password(string): Password of username from Directory Service
+        user_principal_name(string): (optional) LDAP userPrincipalName attribute
+        bind_dn(string): (optional) LDAP distinguishedName is a sequence of relative distinguished names (RDN) connected by commas
     Raises:
         Value Error: If username or password has characters from exclude list.
     """
     username = dict_arg[DICT_KEY_USERNAME]
     password = dict_arg[DICT_KEY_PASSWORD]
     # Optional fields
-    email = dict_arg.get(DICT_KEY_EMAIL) or None
+    user_principal_name = dict_arg.get(DICT_KEY_USERPRINCIPALNAME) or None
     bind_dn = dict_arg.get(DICT_KEY_BIND_DN) or None
-    obfuscated_password = dict_arg.get(DICT_KEY_OBFUSCATED_PASSWORD) or None
 
     username_check_list = [char in username for char in EXCLUDE_CHARACTERS]
     if True in username_check_list:
@@ -374,18 +359,106 @@ def check_inputs(dict_arg):
     if True in password_check_list:
         raise ValueError("check_inputs: Invalid character in password")
 
-    return username, password, email, bind_dn, obfuscated_password
+    return username, password, user_principal_name, bind_dn
+
+
+def check_bind_user(dict_arg):
+    """
+    Checks for the most precise bind user available
+    Args:
+        dict_arg (dictionary): Dictionary containing the current secret
+    Returns:
+        user(string): User string to bind to the Directory Service
+    Raises:
+        Value Error: If username or password has characters from exclude list.
+    """
+    username, password, user_principal_name, bind_dn = check_inputs(dict_arg)
+    if bind_dn:
+        user = bind_dn
+    elif user_principal_name:
+        user = user_principal_name
+    else:
+        user = username
+
+    if user:
+        return user
+    else:
+        raise ValueError("check_bind_user: Invalid bind user")
+
+
+def ldap_connection(dict_arg):
+    """
+    Generates an LDAP Connection object and validates if it can successfully bind.
+    This function uses the list of LDAP servers to generate a list of LDAP Server objects which use SSL.
+    The list of LDAP Servers is then used to create the LDAP connection.
+    Args:
+        dict_arg (dictionary): Dictionary containing the current secret
+    Returns:
+        conn(Connection): The Connection object is used to send operation requests to the LDAP Server.
+    Raises:
+        Value Error: If the ldap connection fails.
+    """
+    username, password, user_principal_name, bind_dn = check_inputs(dict_arg)
+    bind_user = check_bind_user(dict_arg)
+    ldap_servers_list = json.loads(LDAP_SERVER_LIST)
+
+    ldap_servers = [
+        Server(host, port=int(LDAP_SERVER_PORT), use_ssl=True, get_info="NONE")
+        for host in ldap_servers_list
+    ]
+    try:
+        conn = Connection(ldap_servers, user=bind_user, password=password)
+        conn.bind()
+        if conn.result.get('result') == 0:
+            return conn
+        else:
+            raise ValueError(
+                f"ldap_connection: ldap bind failed! Connection result: {conn.result.get('result')}, "
+                f"description: {conn.result.get('description')}")
+    except Exception as e:
+        logger.error("ldap_connection: ldap bind failed")
+        logger.error(e)
+        raise ValueError("ldap_connection: ldap bind failed") from Exception
 
 
 if __name__ == "__main__":
-    event = {
-        'ClientRequestToken':
-            '4a3eed88-cfa6-4452-b121-9a7259ecfbcf',
-        'SecretId':
-            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssdtest-qTpL5L',
-        'Step':
-            'test'
-    }
-    context = {}
+    """
+    This section is not executed in lambda directly but can be used locally to debug.
+    """
 
-    lambda_handler(event, context)
+    event_create = {
+        'ClientRequestToken':
+            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
+        'SecretId':
+            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
+        'Step':
+            'createSecret'
+    }
+    event_set = {
+        'ClientRequestToken':
+            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
+        'SecretId':
+            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
+        'Step':
+            'setSecret'
+    }
+    event_test = {
+        'ClientRequestToken':
+            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
+        'SecretId':
+            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
+        'Step':
+            'testSecret'
+    }
+    event_finish = {
+        'ClientRequestToken':
+            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
+        'SecretId':
+            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
+        'Step':
+            'finishSecret'
+    }
+
+    context = None
+
+    lambda_handler(event_test, context)
