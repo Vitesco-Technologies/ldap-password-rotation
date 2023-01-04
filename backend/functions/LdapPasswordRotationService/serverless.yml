@@ -1,4 +1,4 @@
-service: datalake-ldap-pw-rotation
+service: LdapPasswordRotation
 
 frameworkVersion: "3"
 
@@ -92,3 +92,9 @@ resources:
           - IpProtocol: -1
             CidrIp: 192.168.0.0/16
         VpcId: ${self:custom.file.VPC_ID}
+    SecretsManagerInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: { "Fn::GetAtt": ["AppLambdaFunction", "Arn"] }
+        Action: lambda:InvokeFunction
+        Principal: secretsmanager.amazonaws.com
