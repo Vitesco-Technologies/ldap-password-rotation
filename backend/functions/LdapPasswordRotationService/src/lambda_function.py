@@ -269,7 +269,15 @@ def get_secret_dict(secrets_manager_client, arn, stage, token=None):
         secret = secrets_manager_client.get_secret_value(SecretId=arn,
                                                          VersionStage=stage)
     plaintext = secret["SecretString"]
-    secret_dict = json.loads(plaintext)
+
+    try:
+        secret_dict = json.loads(plaintext)
+    except ValueError as e:
+        logger.error(
+            "get_secret_dict: Invalid secret format. The secret can't be loaded as json.")
+        logger.error(e)
+        raise ValueError(
+            "get_secret_dict: Invalid secret format. The secret can't be loaded as json.")
 
     for field in required_fields:
         if field not in secret_dict:
