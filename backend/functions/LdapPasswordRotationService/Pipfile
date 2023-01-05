@@ -9,6 +9,10 @@ ldap3 = "*"
 [dev-packages]
 boto3 = "*"
 pipenv = "==2022.12.17"
+pytest = "*"
+python-ldap-test = "*"
+pytest-cov = "*"
+moto = "*"
 
 [requires]
 python_version = "3.9"

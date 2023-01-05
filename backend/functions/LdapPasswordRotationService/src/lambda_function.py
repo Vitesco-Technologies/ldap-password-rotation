@@ -14,13 +14,13 @@ DICT_KEY_USERPRINCIPALNAME = os.environ.get(
     "DICT_KEY_USERPRINCIPALNAME") or "userPrincipalName"
 DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_BIND_DN") or "ldap_default_bind_dn"
 
-SECRETS_MANAGER_ENDPOINT = os.environ.get(
-    "SECRETS_MANAGER_ENDPOINT") or "https://secretsmanager.eu-central-1.amazonaws.com"
+SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
 EXCLUDE_CHARACTERS = os.environ.get("EXCLUDE_CHARACTERS") or "/'\"\\"
 LDAP_SERVER_LIST = os.environ.get(
     "LDAP_SERVER_LIST"
 ) or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
+LDAP_USE_SSL = True
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
 LDAP_BIND_PENDING_CREDS_SUCCESSFUL = "LDAP_BIND_USING_PENDING_CREDS_SUCCESSFUL"
 
@@ -52,7 +52,7 @@ def lambda_handler(event, context):
 
     # Setup the client
     secrets_manager_client = boto3.client('secretsmanager',
-                                          endpoint_url=SECRETS_MANAGER_ENDPOINT)
+                                          region_name=SECRETS_MANAGER_REGION)
 
     # Make sure the version is staged correctly
     metadata = secrets_manager_client.describe_secret(SecretId=arn)
@@ -403,7 +403,7 @@ def ldap_connection(dict_arg):
     ldap_servers_list = json.loads(LDAP_SERVER_LIST)
 
     ldap_servers = [
-        Server(host, port=int(LDAP_SERVER_PORT), use_ssl=True, get_info="NONE")
+        Server(host, port=int(LDAP_SERVER_PORT), use_ssl=LDAP_USE_SSL, get_info="NONE")
         for host in ldap_servers_list
     ]
     try:
