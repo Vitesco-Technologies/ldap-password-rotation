@@ -4,12 +4,17 @@ import boto3
 import os
 import json
 
-from moto import mock_secretsmanager, mock_lambda, settings, mock_s3
-from moto.core import DEFAULT_ACCOUNT_ID as ACCOUNT_ID
-from botocore.exceptions import ClientError, ParamValidationError
+from moto import mock_secretsmanager, mock_lambda
 from ldap_test import LdapServer
 
 from src import lambda_function
+from .utilities import lambda_util
+
+_region = "eu-central-1"
+
+###############
+## fixtures ###
+###############
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -19,7 +24,7 @@ def aws_credentials():
     os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
     os.environ["AWS_SECURITY_TOKEN"] = "testing"
     os.environ["AWS_SESSION_TOKEN"] = "testing"
-    os.environ["AWS_DEFAULT_REGION"] = "eu-central-1"
+    os.environ["AWS_DEFAULT_REGION"] = _region
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -28,7 +33,7 @@ def lambda_env():
     lambda_function.DICT_KEY_PASSWORD = "password"
     lambda_function.DICT_KEY_USERPRINCIPALNAME = "userPrincipalName"
     lambda_function.DICT_KEY_BIND_DN = "bind_dn"
-    lambda_function.SECRETS_MANAGER_REGION = "eu-central-1"
+    lambda_function.SECRETS_MANAGER_REGION = _region
     lambda_function.EXCLUDE_CHARACTERS = "/'\"\\"
 
 
@@ -40,7 +45,7 @@ def lambda_ldap_env(ldap_config):
     lambda_function.LDAP_USE_SSL = False
 
 
-@ pytest.fixture(scope="function")
+@pytest.fixture(scope="function")
 def ldap_server():
     server = LdapServer()
     try:
@@ -52,7 +57,7 @@ def ldap_server():
         server.stop()
 
 
-@ pytest.fixture(scope="function")
+@pytest.fixture(scope="function")
 def ldap_config(ldap_server, lambda_env):
     config = ldap_server.config
     config[lambda_function.DICT_KEY_USERNAME] = "testuser"
@@ -60,17 +65,45 @@ def ldap_config(ldap_server, lambda_env):
     yield config
 
 
-@ pytest.fixture(scope="function")
+@pytest.fixture(scope="function")
 def secretsmanager(aws_credentials):
     with mock_secretsmanager():
-        yield boto3.client("secretsmanager", region_name="eu-central-1")
+        yield boto3.client("secretsmanager", region_name=_region)
 
 
-@ pytest.fixture(scope="function")
+@pytest.fixture(scope="function")
+def lambda_conn(aws_credentials):
+    with mock_lambda():
+        yield boto3.client("lambda", region_name=_region)
+
+
+@pytest.fixture(scope="function")
+def lambda_func(lambda_conn):
+    func = lambda_conn.create_function(
+        FunctionName="testFunction",
+        Runtime="python3.9",
+        Role=lambda_util.get_role_name(),
+        Handler="lambda_function.lambda_handler",
+        Code={"ZipFile": lambda_util.get_lambda_zip_file()},
+        Description="Secret rotator",
+        Timeout=3,
+        MemorySize=128,
+        Publish=True,
+    )
+    yield func
+
+
+@pytest.fixture(scope="function")
 def mock_secrets(secretsmanager, ldap_config):
     secret_dict = {
         lambda_function.DICT_KEY_USERNAME: ldap_config[lambda_function.DICT_KEY_USERNAME],
         lambda_function.DICT_KEY_PASSWORD: ldap_config[lambda_function.DICT_KEY_PASSWORD],
+        lambda_function.DICT_KEY_USERPRINCIPALNAME: ldap_config[lambda_function.DICT_KEY_USERPRINCIPALNAME],
+        lambda_function.DICT_KEY_BIND_DN: ldap_config[lambda_function.DICT_KEY_BIND_DN]
+    }
+    secret_dict_wrong_pw = {
+        lambda_function.DICT_KEY_USERNAME: ldap_config[lambda_function.DICT_KEY_USERNAME],
+        lambda_function.DICT_KEY_PASSWORD: "wrong",
         lambda_function.DICT_KEY_USERPRINCIPALNAME: ldap_config[lambda_function.DICT_KEY_USERPRINCIPALNAME],
         lambda_function.DICT_KEY_BIND_DN: ldap_config[lambda_function.DICT_KEY_BIND_DN]
     }
@@ -81,17 +114,34 @@ def mock_secrets(secretsmanager, ldap_config):
         lambda_function.DICT_KEY_USERNAME: ldap_config[lambda_function.DICT_KEY_USERNAME],
     }
     secret_string = ldap_config['password']
-    secret_test = secretsmanager.create_secret(
-        Name="ldap-test", SecretString=json.dumps(secret_dict))
-    secret_test_no_user = secretsmanager.create_secret(
-        Name="ldap-test-no-user", SecretString=json.dumps(secret_dict_no_user))
-    secret_test_no_pw = secretsmanager.create_secret(
-        Name="ldap-test-no-pw", SecretString=json.dumps(secret_dict_no_pw))
-    secret_test_string = secretsmanager.create_secret(
-        Name="ldap-test-string", SecretString="secret_string")
 
-    yield secret_test, secret_test_no_user, secret_test_no_pw, secret_test_string
+    mock_secrets = {
+        "secret_test": secretsmanager.create_secret(
+            Name="ldap-test", SecretString=json.dumps(secret_dict)),
+        "secret_test_wrong_pw": secretsmanager.create_secret(
+            Name="ldap-test-wrong-pw", SecretString=json.dumps(secret_dict_wrong_pw)),
+        "secret_test_no_user": secretsmanager.create_secret(
+            Name="ldap-test-no-user", SecretString=json.dumps(secret_dict_no_user)),
+        "secret_test_no_pw": secretsmanager.create_secret(
+            Name="ldap-test-no-pw", SecretString=json.dumps(secret_dict_no_pw)),
+        "secret_test_string": secretsmanager.create_secret(
+            Name="ldap-test-string", SecretString="secret_string")
+    }
 
+    yield mock_secrets
+
+
+@pytest.fixture(scope="function")
+def mock_secret_strings(secretsmanager, mock_secrets):
+    yield {
+        key: secretsmanager.get_secret_value(SecretId=secret["ARN"])["SecretString"]
+        for (key, secret) in mock_secrets.items()
+    }
+
+
+#####################
+## fixtures tests ###
+#####################
 
 def test_ldap_config(ldap_config):
     # Checks if ldap_test settings change
@@ -140,6 +190,10 @@ def test_ldap_conn(ldap_server, ldap_config):
     conn.bind()
     assert conn.result.get('result') == 0
 
+
+#############################
+## Helper functions tests ###
+#############################
 
 def test_check_inputs(ldap_config):
     username, password, user_principal_name, bind_dn = lambda_function.check_inputs(
@@ -211,20 +265,18 @@ def test_ldap_connection_wrong_pw(ldap_config):
     assert "ldap bind failed" in str(e.value).lower()
 
 
-def test_get_secret_dict(secretsmanager, mock_secrets):
-    secret_test, secret_test_no_user, secret_test_no_pw, secret_test_string = mock_secrets
+def test_get_secret_dict(secretsmanager, mock_secrets, mock_secret_strings):
     secret_dict = lambda_function.get_secret_dict(
         secrets_manager_client=secretsmanager,
-        arn=secret_test["ARN"],
+        arn=mock_secrets["secret_test"]["ARN"],
         stage="AWSCURRENT",
         token=None)
-    secret_value = secretsmanager.get_secret_value(SecretId=secret_test["ARN"])
-    assert secret_dict == json.loads(secret_value["SecretString"])
+    assert secret_dict == json.loads(mock_secret_strings["secret_test"])
 
     with pytest.raises(KeyError) as e:
         secret_dict = lambda_function.get_secret_dict(
             secrets_manager_client=secretsmanager,
-            arn=secret_test_no_user["ARN"],
+            arn=mock_secrets["secret_test_no_user"]["ARN"],
             stage="AWSCURRENT",
             token=None)
     assert f"{lambda_function.DICT_KEY_USERNAME} key is missing".lower() in str(
@@ -233,7 +285,7 @@ def test_get_secret_dict(secretsmanager, mock_secrets):
     with pytest.raises(KeyError) as e:
         secret_dict = lambda_function.get_secret_dict(
             secrets_manager_client=secretsmanager,
-            arn=secret_test_no_pw["ARN"],
+            arn=mock_secrets["secret_test_no_pw"]["ARN"],
             stage="AWSCURRENT",
             token=None)
     assert f"{lambda_function.DICT_KEY_PASSWORD} key is missing".lower() in str(
@@ -242,7 +294,46 @@ def test_get_secret_dict(secretsmanager, mock_secrets):
     with pytest.raises(ValueError) as e:
         secret_dict = lambda_function.get_secret_dict(
             secrets_manager_client=secretsmanager,
-            arn=secret_test_string["ARN"],
+            arn=mock_secrets["secret_test_string"]["ARN"],
             stage="AWSCURRENT",
             token=None)
+    assert "invalid secret format" in str(e.value).lower()
+
+
+def test_execute_ldap_command_current(mock_secret_strings):
+    result = lambda_function.execute_ldap_command(
+        json.loads(mock_secret_strings["secret_test"]), None)
+    assert result is lambda_function.LDAP_BIND_CURRENT_CREDS_SUCCESSFUL
+
+
+def test_execute_ldap_command_pending(mock_secret_strings):
+    result = lambda_function.execute_ldap_command(
+        None, json.loads(mock_secret_strings["secret_test"]))
+    assert result is lambda_function.LDAP_BIND_PENDING_CREDS_SUCCESSFUL
+
+
+def test_execute_ldap_command_both(mock_secret_strings):
+    result = lambda_function.execute_ldap_command(
+        json.loads(mock_secret_strings["secret_test"]), json.loads(mock_secret_strings["secret_test"]))
+    assert result is lambda_function.LDAP_BIND_PENDING_CREDS_SUCCESSFUL
+
+
+def test_execute_ldap_command_none():
+    with pytest.raises(ValueError) as e:
+        lambda_function.execute_ldap_command(None, None)
+    assert "unexpected value" in str(e.value).lower()
+
+
+def test_execute_ldap_command_only_current_valid(mock_secret_strings):
+    result = lambda_function.execute_ldap_command(
+        json.loads(mock_secret_strings["secret_test"]), json.loads(mock_secret_strings["secret_test_wrong_pw"]))
+    assert result is lambda_function.LDAP_BIND_CURRENT_CREDS_SUCCESSFUL
+
+
+def test_execute_ldap_command_both_invalid(mock_secret_strings):
+    with pytest.raises(ValueError) as e:
+        lambda_function.execute_ldap_command(
+            json.loads(mock_secret_strings["secret_test_wrong_pw"]), json.loads(mock_secret_strings["secret_test_wrong_pw"]))
+    assert "ldap bind failed" in str(e.value).lower()
+
     assert f"invalid secret format" in str(e.value).lower()

@@ -13,6 +13,7 @@ pytest = "*"
 python-ldap-test = "*"
 pytest-cov = "*"
 moto = "*"
+docker = "*"
 
 [requires]
 python_version = "3.9"
