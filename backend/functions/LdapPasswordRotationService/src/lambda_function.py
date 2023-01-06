@@ -7,18 +7,19 @@ from ldap3 import Connection, Server, extend
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
 DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "username"
 DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
-DICT_KEY_USERPRINCIPALNAME = os.environ.get(
-    "DICT_KEY_USERPRINCIPALNAME") or "userPrincipalName"
+DICT_KEY_USERPRINCIPALNAME = (
+    os.environ.get("DICT_KEY_USERPRINCIPALNAME") or "userPrincipalName"
+)
 DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_BIND_DN") or "ldap_default_bind_dn"
 
 SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
 EXCLUDE_CHARACTERS = os.environ.get("EXCLUDE_CHARACTERS") or "/'\"\\"
-LDAP_SERVER_LIST = os.environ.get(
-    "LDAP_SERVER_LIST"
-) or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'
+LDAP_SERVER_LIST = (
+    os.environ.get("LDAP_SERVER_LIST")
+    or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'  # noqa: E501
+)
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
 LDAP_USE_SSL = True
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
@@ -26,7 +27,7 @@ LDAP_BIND_PENDING_CREDS_SUCCESSFUL = "LDAP_BIND_USING_PENDING_CREDS_SUCCESSFUL"
 
 
 def lambda_handler(event, context):
-    """Secrets Manager Rotation LDAP
+    """Secrets Manager Rotation LDAP # noqa: E501
     Rotates a password for a LDAP user account. This is the main lambda entry point.
     This rotation lambda expects the secret in the secrets manager to include at least the user and password.
     In addition, the user has to be available in the format of userPrincipalName or distinguishedName.
@@ -44,37 +45,43 @@ def lambda_handler(event, context):
     """
     logger.info(f"### Current Event: {event}. ###")
 
-    arn = event['SecretId']
-    token = event['ClientRequestToken']
-    step = event['Step']
+    arn = event["SecretId"]
+    token = event["ClientRequestToken"]
+    step = event["Step"]
 
     logger.info(f"### Current Step: {step}. ###")
 
     # Setup the client
-    secrets_manager_client = boto3.client('secretsmanager',
-                                          region_name=SECRETS_MANAGER_REGION)
+    secrets_manager_client = boto3.client(
+        "secretsmanager", region_name=SECRETS_MANAGER_REGION
+    )
 
     # Make sure the version is staged correctly
     metadata = secrets_manager_client.describe_secret(SecretId=arn)
-    if not metadata['RotationEnabled']:
+    if not metadata["RotationEnabled"]:
         logger.error(f"Secret {arn} is not enabled for rotation")
         raise ValueError(f"Secret {arn} is not enabled for rotation")
-    versions = metadata['VersionIdsToStages']
+    versions = metadata["VersionIdsToStages"]
     if token not in versions:
         logger.error(
-            f"Secret version {token} has no stage for rotation of secret {arn}.")
+            f"Secret version {token} has no stage for rotation of secret {arn}."
+        )
         raise ValueError(
-            f"Secret version {token} has no stage for rotation of secret {arn}.")
+            f"Secret version {token} has no stage for rotation of secret {arn}."
+        )
     if "AWSCURRENT" in versions[token]:
         logger.info(
-            f"Secret version {token} already set as AWSCURRENT for secret {arn}.")
+            f"Secret version {token} already set as AWSCURRENT for secret {arn}."
+        )
         return
     elif "AWSPENDING" not in versions[token]:
         logger.error(
-            f"Secret version {token} not set as AWSPENDING for rotation of secret {arn}."
+            f"Secret version {token} not set as AWSPENDING "
+            f"for rotation of secret {arn}."
         )
         raise ValueError(
-            f"Secret version {token} not set as AWSPENDING for rotation of secret {arn}."
+            f"Secret version {token} not set as AWSPENDING "
+            f"for rotation of secret {arn}."
         )
 
     current_dict = get_secret_dict(secrets_manager_client, arn, "AWSCURRENT")
@@ -87,12 +94,12 @@ def lambda_handler(event, context):
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         if current_dict[DICT_KEY_USERNAME] != pending_dict[DICT_KEY_USERNAME]:
             logger.error(
-                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict "
-                f"does not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict does "
+                f"not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
             )
             raise ValueError(
-                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict "
-                f"does not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict does "
+                f"not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
             )
         set_secret(current_dict, pending_dict)
 
@@ -108,7 +115,7 @@ def lambda_handler(event, context):
 
 
 def create_secret(secrets_manager_client, arn, token, current_dict):
-    """Create the secret
+    """Create the secret # noqa: E501
     This method first checks for the existence of a secret for the passed in token. If one does not exist, it will generate a
     new secret and put it with the passed in token.
     Args:
@@ -129,7 +136,8 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
     except secrets_manager_client.exceptions.ResourceNotFoundException:
         # Generate a random password
         passwd = secrets_manager_client.get_random_password(
-            ExcludeCharacters=EXCLUDE_CHARACTERS)
+            ExcludeCharacters=EXCLUDE_CHARACTERS
+        )
         current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
 
         # Put the secret
@@ -140,13 +148,15 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
             VersionStages=["AWSPENDING"],
         )
         logger.info(
-            f"createSecret: Successfully put secret for ARN {arn} and version {token}.")
+            f"createSecret: Successfully put secret for ARN {arn} and version {token}."
+        )
 
 
 def set_secret(current_dict, pending_dict):
-    """
-    Set the secret in Directory Services. This is the second step, where Directory Services is actually updated.
-    This method does not update the Secret Manager label. Therefore, the AWSCURRENT secret does not match the password in Directory
+    """Set the secret # noqa: E501
+    This is the second step, where Directory Services is actually updated.
+    This method does not update the Secret Manager label.
+    Therefore, the AWSCURRENT secret does not match the password in Directory
     Services as the end of this step. We are technically in a broken state at the end of this step.
     It will be fixed in the finishSecret step when the Secrets Manager value is updated.
     Args:
@@ -168,7 +178,8 @@ def set_secret(current_dict, pending_dict):
     # return.
     if status == LDAP_BIND_PENDING_CREDS_SUCCESSFUL:
         logger.info(
-            "setSecret: Skipping the setSecret step, since the new credentials are already valid."
+            "setSecret: Skipping the setSecret step, "
+            "since the new credentials are already valid."
         )
         return
 
@@ -178,23 +189,28 @@ def set_secret(current_dict, pending_dict):
         bind_user = check_bind_user(pending_dict)
         conn = ldap_connection(current_dict)
         conn.bind()
-        if conn.result.get('result') == 0:
+        if conn.result.get("result") == 0:
             extend.microsoft.modifyPassword.ad_modify_password(
-                conn, bind_user, new_password=new_password, old_password=old_password)
+                conn, bind_user, new_password=new_password, old_password=old_password
+            )
         else:
             raise ValueError(
-                f"ldap bind failed! Connection result: {conn.result.get('result')}, description: {conn.result.get('description')}"
+                f"ldap bind failed! Connection result: {conn.result.get('result')},"
+                f"description: {conn.result.get('description')}"
             )
     except Exception as e:
-        logger.error("setSecret: Unable to reset the users password in Directory "
-                     f"Services user {pending_dict[DICT_KEY_USERNAME]}")
+        logger.error(
+            "setSecret: Unable to reset the users password in Directory "
+            f"Services user {pending_dict[DICT_KEY_USERNAME]}"
+        )
         logger.error(e)
         raise ValueError(
-            "Unable to reset the users password in Directory Services") from Exception
+            "Unable to reset the users password in Directory Services"
+        ) from Exception
 
 
 def test_secret(pending_dict):
-    """
+    """Test the secret # noqa: E501
     Args:
         pending_dict (dictionary): Used to test pending credentials
     Raises:
@@ -204,7 +220,7 @@ def test_secret(pending_dict):
 
 
 def finish_secret(secrets_manager_client, arn, token):
-    """Finish the secret
+    """Finish the secret # noqa: E501
     This method finalizes the rotation process by marking the secret version passed in as the AWSCURRENT secret.
     Args:
         secrets_manager_client (client): The secrets manager service client
@@ -221,7 +237,8 @@ def finish_secret(secrets_manager_client, arn, token):
             if version == token:
                 # The correct version is already marked as current, return
                 logger.info(
-                    f"finishSecret: Version {version} already marked as AWSCURRENT for {arn}"
+                    f"finishSecret: Version {version} "
+                    f"already marked as AWSCURRENT for {arn}"
                 )
                 return
             current_version = version
@@ -232,9 +249,11 @@ def finish_secret(secrets_manager_client, arn, token):
         SecretId=arn,
         VersionStage="AWSCURRENT",
         MoveToVersionId=token,
-        RemoveFromVersionId=current_version)
+        RemoveFromVersionId=current_version,
+    )
     logger.info(
-        f"finishSecret: Successfully set AWSCURRENT stage to version {token} for secret {arn}."
+        "finishSecret: Successfully set AWSCURRENT "
+        f"stage to version {token} for secret {arn}."
     )
 
 
@@ -262,22 +281,27 @@ def get_secret_dict(secrets_manager_client, arn, stage, token=None):
     required_fields = [DICT_KEY_USERNAME, DICT_KEY_PASSWORD]
     # Only do VersionId validation against the stage if a token is passed in
     if token:
-        secret = secrets_manager_client.get_secret_value(SecretId=arn,
-                                                         VersionId=token,
-                                                         VersionStage=stage)
+        secret = secrets_manager_client.get_secret_value(
+            SecretId=arn, VersionId=token, VersionStage=stage
+        )
     else:
-        secret = secrets_manager_client.get_secret_value(SecretId=arn,
-                                                         VersionStage=stage)
+        secret = secrets_manager_client.get_secret_value(
+            SecretId=arn, VersionStage=stage
+        )
     plaintext = secret["SecretString"]
 
     try:
         secret_dict = json.loads(plaintext)
     except ValueError as e:
         logger.error(
-            "get_secret_dict: Invalid secret format. The secret can't be loaded as json.")
+            "get_secret_dict: Invalid secret format. "
+            "The secret can't be loaded as json."
+        )
         logger.error(e)
         raise ValueError(
-            "get_secret_dict: Invalid secret format. The secret can't be loaded as json.")
+            "get_secret_dict: Invalid secret format. "
+            "The secret can't be loaded as json."
+        )
 
     for field in required_fields:
         if field not in secret_dict:
@@ -305,20 +329,23 @@ def execute_ldap_command(current_dict, pending_dict):
         try:
             conn = ldap_connection(pending_dict)
             conn.bind()
-            if conn.result.get('result') == 0:
+            if conn.result.get("result") == 0:
                 return LDAP_BIND_PENDING_CREDS_SUCCESSFUL
             else:
                 # If Pending secret does not authenticate, we can proceed to
                 # current secret.
                 logger.info(
-                    "execute_ldap_command: Proceed to current secret since pending secret does not authenticate"
-                    f"Connection result: {conn.result.get('result')}, description: {conn.result.get('description')}"
+                    "execute_ldap_command: Proceed to current secret "
+                    "since pending secret does not authenticate "
+                    f"Connection result: {conn.result.get('result')}, "
+                    f"description: {conn.result.get('description')}"
                 )
-        except:
+        except Exception:
             # If Pending secret does not authenticate, we can proceed to
             # current secret.
             logger.info(
-                "execute_ldap_command: Proceed to current secret since pending secret does not authenticate"
+                "execute_ldap_command: Proceed to current secret "
+                "since pending secret does not authenticate"
             )
 
     if current_dict is None:
@@ -328,12 +355,13 @@ def execute_ldap_command(current_dict, pending_dict):
     try:
         conn = ldap_connection(current_dict)
         conn.bind()
-        if conn.result.get('result') == 0:
+        if conn.result.get("result") == 0:
             return LDAP_BIND_CURRENT_CREDS_SUCCESSFUL
         else:
             raise ValueError(
                 f"ldap bind failed! Connection result: {conn.result.get('result')}, "
-                f"description: {conn.result.get('description')}")
+                f"description: {conn.result.get('description')}"
+            )
     except Exception as e:
         logger.error("execute_ldap_command: ldap bind failed")
         logger.error(e)
@@ -341,7 +369,7 @@ def execute_ldap_command(current_dict, pending_dict):
 
 
 def check_inputs(dict_arg):
-    """
+    """# noqa: E501
     Check username and password for invalid characters
     Args:
         dict_arg (dictionary): Dictionary containing current credentials
@@ -371,7 +399,7 @@ def check_inputs(dict_arg):
 
 
 def check_bind_user(dict_arg):
-    """
+    """# noqa: E501
     Checks for the most precise bind user available
     Args:
         dict_arg (dictionary): Dictionary containing the current secret
@@ -395,7 +423,7 @@ def check_bind_user(dict_arg):
 
 
 def ldap_connection(dict_arg):
-    """
+    """# noqa: E501
     Generates an LDAP Connection object and validates if it can successfully bind.
     This function uses the list of LDAP servers to generate a list of LDAP Server objects which use SSL.
     The list of LDAP Servers is then used to create the LDAP connection.
@@ -417,12 +445,14 @@ def ldap_connection(dict_arg):
     try:
         conn = Connection(ldap_servers, user=bind_user, password=password)
         conn.bind()
-        if conn.result.get('result') == 0:
+        if conn.result.get("result") == 0:
             return conn
         else:
             raise ValueError(
-                f"ldap_connection: ldap bind failed! Connection result: {conn.result.get('result')}, "
-                f"description: {conn.result.get('description')}")
+                f"ldap_connection: ldap bind failed! "
+                f"Connection result: {conn.result.get('result')}, "
+                f"description: {conn.result.get('description')}"
+            )
     except Exception as e:
         logger.error("ldap_connection: ldap bind failed")
         logger.error(e)
@@ -435,36 +465,24 @@ if __name__ == "__main__":
     """
 
     event_create = {
-        'ClientRequestToken':
-            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
-        'SecretId':
-            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
-        'Step':
-            'createSecret'
+        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
+        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
+        "Step": "createSecret",
     }
     event_set = {
-        'ClientRequestToken':
-            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
-        'SecretId':
-            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
-        'Step':
-            'setSecret'
+        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
+        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
+        "Step": "setSecret",
     }
     event_test = {
-        'ClientRequestToken':
-            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
-        'SecretId':
-            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
-        'Step':
-            'testSecret'
+        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
+        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
+        "Step": "testSecret",
     }
     event_finish = {
-        'ClientRequestToken':
-            'b672b1ee-d9a4-45ca-85d2-ce30a85197bc',
-        'SecretId':
-            'arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B',
-        'Step':
-            'finishSecret'
+        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
+        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
+        "Step": "finishSecret",
     }
 
     context = None

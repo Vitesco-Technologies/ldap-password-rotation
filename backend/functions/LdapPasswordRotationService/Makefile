@@ -14,7 +14,7 @@ help:  ## Show available commands
 #######################
 
 .PHONY: setup
-setup: clean ## Set up dependencies
+setup: ## Set up dependencies
 	echo python version: $$(which python3.9) 
 	@(PIPENV_VERBOSITY=-1 pipenv --venv && PIPENV_VERBOSITY=-1 PIPENV_VENV_IN_PROJECT=1 pipenv --rm) || true >/dev/null
 	CFLAGS=$(CFLAGS) LC_ALL=$(LC_ALL) LANG=$(LANG) PIPENV_VENV_IN_PROJECT=1 pipenv sync --dev --python=$$(which python3.9)
