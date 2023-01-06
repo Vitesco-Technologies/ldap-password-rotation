@@ -23,13 +23,17 @@ def aws_credentials():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def lambda_env(ldap_config):
-    lambda_function.DICT_KEY_USERNAME = "bind_dn"
+def lambda_env():
+    lambda_function.DICT_KEY_USERNAME = "username"
     lambda_function.DICT_KEY_PASSWORD = "password"
     lambda_function.DICT_KEY_USERPRINCIPALNAME = "userPrincipalName"
-    lambda_function.DICT_KEY_BIND_DN = "ldap_default_bind_dn"
+    lambda_function.DICT_KEY_BIND_DN = "bind_dn"
     lambda_function.SECRETS_MANAGER_REGION = "eu-central-1"
     lambda_function.EXCLUDE_CHARACTERS = "/'\"\\"
+
+
+@pytest.fixture(scope="function", autouse=True)
+def lambda_ldap_env(ldap_config):
     lambda_function.LDAP_SERVER_LIST = '["localhost"]'
     lambda_function.LDAP_SERVER_PORT = ldap_config['port']
     # Currently ldap_test doesn't support SSL
@@ -49,8 +53,10 @@ def ldap_server():
 
 
 @ pytest.fixture(scope="function")
-def ldap_config(ldap_server):
+def ldap_config(ldap_server, lambda_env):
     config = ldap_server.config
+    config[lambda_function.DICT_KEY_USERNAME] = "testuser"
+    config[lambda_function.DICT_KEY_USERPRINCIPALNAME] = config[lambda_function.DICT_KEY_BIND_DN]
     yield config
 
 
@@ -63,16 +69,16 @@ def secretsmanager(aws_credentials):
 @ pytest.fixture(scope="function")
 def mock_secrets(secretsmanager, ldap_config):
     secret_dict = {
-        lambda_function.DICT_KEY_USERNAME: ldap_config['bind_dn'],
-        lambda_function.DICT_KEY_PASSWORD: ldap_config['password'],
-        lambda_function.DICT_KEY_USERPRINCIPALNAME: ldap_config['bind_dn'],
-        lambda_function.DICT_KEY_BIND_DN: ldap_config['bind_dn']
+        lambda_function.DICT_KEY_USERNAME: ldap_config[lambda_function.DICT_KEY_USERNAME],
+        lambda_function.DICT_KEY_PASSWORD: ldap_config[lambda_function.DICT_KEY_PASSWORD],
+        lambda_function.DICT_KEY_USERPRINCIPALNAME: ldap_config[lambda_function.DICT_KEY_USERPRINCIPALNAME],
+        lambda_function.DICT_KEY_BIND_DN: ldap_config[lambda_function.DICT_KEY_BIND_DN]
     }
     secret_dict_no_user = {
         lambda_function.DICT_KEY_PASSWORD: ldap_config['password']
     }
     secret_dict_no_pw = {
-        lambda_function.DICT_KEY_USERNAME: ldap_config['bind_dn'],
+        lambda_function.DICT_KEY_USERNAME: ldap_config[lambda_function.DICT_KEY_USERNAME],
     }
     secret_string = ldap_config['password']
     secret_test = secretsmanager.create_secret(
@@ -95,8 +101,10 @@ def test_ldap_config(ldap_config):
             'dn': 'dc=example,dc=com',
             'objectclass': ['domain']
         },
-        'bind_dn': 'cn=admin,dc=example,dc=com',
-        'password': 'password',
+        lambda_function.DICT_KEY_USERNAME: 'testuser',
+        lambda_function.DICT_KEY_BIND_DN: 'cn=admin,dc=example,dc=com',
+        lambda_function.DICT_KEY_USERPRINCIPALNAME: 'cn=admin,dc=example,dc=com',
+        lambda_function.DICT_KEY_PASSWORD: 'password',
         'port': 10389
     }
 
@@ -137,10 +145,10 @@ def test_check_inputs(ldap_config):
     username, password, user_principal_name, bind_dn = lambda_function.check_inputs(
         ldap_config)
 
-    assert username is ldap_config['bind_dn']
-    assert password is ldap_config['password']
-    assert user_principal_name is None
-    assert bind_dn is None
+    assert username is ldap_config[lambda_function.DICT_KEY_USERNAME]
+    assert password is ldap_config[lambda_function.DICT_KEY_PASSWORD]
+    assert user_principal_name is ldap_config[lambda_function.DICT_KEY_USERPRINCIPALNAME]
+    assert bind_dn is ldap_config[lambda_function.DICT_KEY_BIND_DN]
 
 
 def test_check_inputs_invalid_password(ldap_config):
@@ -153,7 +161,7 @@ def test_check_inputs_invalid_password(ldap_config):
 
 def test_check_inputs_invalid_user(ldap_config):
     dict_arg = ldap_config
-    dict_arg['bind_dn'] = lambda_function.EXCLUDE_CHARACTERS
+    dict_arg[lambda_function.DICT_KEY_USERNAME] = lambda_function.EXCLUDE_CHARACTERS
     with pytest.raises(ValueError) as e:
         lambda_function.check_inputs(dict_arg)
     assert "invalid character in user" in str(e.value).lower()
@@ -161,26 +169,23 @@ def test_check_inputs_invalid_user(ldap_config):
 
 def test_check_bind_user(ldap_config):
     dict_arg = ldap_config
-    dict_arg[lambda_function.DICT_KEY_USERNAME] = "test_username"
     dict_arg.pop(lambda_function.DICT_KEY_USERPRINCIPALNAME, None)
     dict_arg.pop(lambda_function.DICT_KEY_BIND_DN, None)
-    assert lambda_function.check_bind_user(dict_arg) == "test_username"
+    assert lambda_function.check_bind_user(
+        dict_arg) == ldap_config[lambda_function.DICT_KEY_USERNAME]
 
 
 def test_check_bind_userprincipal(ldap_config):
     dict_arg = ldap_config
-    dict_arg[lambda_function.DICT_KEY_USERNAME] = "test_username"
-    dict_arg[lambda_function.DICT_KEY_USERPRINCIPALNAME] = "test_userprincipal"
     dict_arg.pop(lambda_function.DICT_KEY_BIND_DN, None)
-    assert lambda_function.check_bind_user(dict_arg) == "test_userprincipal"
+    assert lambda_function.check_bind_user(
+        dict_arg) == ldap_config[lambda_function.DICT_KEY_USERPRINCIPALNAME]
 
 
 def test_check_bind_userdnl(ldap_config):
     dict_arg = ldap_config
-    dict_arg[lambda_function.DICT_KEY_USERNAME] = "test_username"
-    dict_arg[lambda_function.DICT_KEY_USERPRINCIPALNAME] = "test_userprincipal"
-    dict_arg[lambda_function.DICT_KEY_BIND_DN] = "test_userdn"
-    assert lambda_function.check_bind_user(dict_arg) == "test_userdn"
+    assert lambda_function.check_bind_user(
+        dict_arg) == ldap_config[lambda_function.DICT_KEY_BIND_DN]
 
 
 def test_check_bind_user_invalid(ldap_config):
