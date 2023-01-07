@@ -42,7 +42,7 @@ def lambda_handler(event, context):
     return _zip_lambda(pfunc)
 
 
-# noqa: E501
+'''# noqa: E501
 # def get_rotate_lambda_zip_file():
 #     # TODO: If this issue (https://github.com/spulec/moto/issues/3779)
 #     # gets implemented we could use our own code with the ldap3 lambda layer
@@ -107,3 +107,4 @@ def lambda_handler(event, context):
 #         )
 #     """
 #     return _zip_lambda(pfunc)
+'''

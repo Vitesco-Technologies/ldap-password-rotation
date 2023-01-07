@@ -156,6 +156,17 @@ def mock_secret_strings(secretsmanager, mock_secrets):
     }
 
 
+@pytest.fixture(scope="function")
+def get_event(request, mock_secrets):
+    client_request_token = str(uuid4())
+    event = {
+        "ClientRequestToken": client_request_token,
+        "SecretId": mock_secrets["secret_test"]["ARN"],
+        "Step": request.param,
+    }
+    return event
+
+
 ##################
 # fixtures tests #
 ##################
@@ -380,11 +391,53 @@ def test_execute_ldap_command_both_invalid(mock_secret_strings):
 ############################
 
 
-def test_lambda_create_secret(secretsmanager, mock_secrets, lambda_func):
-    client_request_token = str(uuid4())
+@pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
+def test_lambda_rotation_not_enabled(secretsmanager, get_event, lambda_func):
+    with pytest.raises(ValueError) as e:
+        lambda_function.lambda_handler(get_event, {})
+    assert "not enabled for rotation" in str(e.value).lower()
 
+
+@pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
+def test_lambda_rotation_wrong_token(secretsmanager, get_event, lambda_func):
+    client_request_token = get_event["ClientRequestToken"]
+    secret_id = get_event["SecretId"]
     secretsmanager.rotate_secret(
-        SecretId=mock_secrets["secret_test"]["Name"],
+        SecretId=secret_id,
+        ClientRequestToken=client_request_token,
+        RotationLambdaARN=lambda_func["FunctionArn"],
+        RotationRules=dict(AutomaticallyAfterDays=60, Duration="1h"),
+        RotateImmediately=False,
+    )
+    wrong_client_request_token = str(uuid4())
+    get_event["ClientRequestToken"] = wrong_client_request_token
+    with pytest.raises(ValueError) as e:
+        lambda_function.lambda_handler(get_event, {})
+    assert "no stage for rotation of secret" in str(e.value).lower()
+
+
+@pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
+def test_lambda_full_rotation(secretsmanager, get_event, lambda_func, ldap_server):
+
+    create_secret = get_event.copy()
+    set_secret = get_event.copy()
+    test_secret = get_event.copy()
+    finish_secret = get_event.copy()
+    set_secret["Step"] = "setSecret"
+    test_secret["Step"] = "testSecret"
+    finish_secret["Step"] = "finishSecret"
+
+    print(create_secret)
+    print(set_secret)
+    print(test_secret)
+    print(finish_secret)
+
+    client_request_token = get_event["ClientRequestToken"]
+    secret_id = get_event["SecretId"]
+
+    # Create secret tests
+    secretsmanager.rotate_secret(
+        SecretId=secret_id,
         ClientRequestToken=client_request_token,
         RotationLambdaARN=lambda_func["FunctionArn"],
         RotationRules=dict(AutomaticallyAfterDays=60, Duration="1h"),
@@ -394,27 +447,23 @@ def test_lambda_create_secret(secretsmanager, mock_secrets, lambda_func):
     try:
         old_secret_pending = json.loads(
             secretsmanager.get_secret_value(
-                SecretId=mock_secrets["secret_test"]["ARN"], VersionStage="AWSPENDING"
+                SecretId=secret_id, VersionStage="AWSPENDING"
             )["SecretString"]
         )
     except Exception:
         old_secret_pending = {"password": ""}
 
-    event_create = {
-        "ClientRequestToken": client_request_token,
-        "SecretId": mock_secrets["secret_test"]["ARN"],
-        "Step": "createSecret",
-    }
-    lambda_function.lambda_handler(event_create, {})
+    lambda_function.lambda_handler(create_secret, {})
+
     secret_current = json.loads(
-        secretsmanager.get_secret_value(
-            SecretId=mock_secrets["secret_test"]["ARN"], VersionStage="AWSCURRENT"
-        )["SecretString"]
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSCURRENT")[
+            "SecretString"
+        ]
     )
     new_secret_pending = json.loads(
-        secretsmanager.get_secret_value(
-            SecretId=mock_secrets["secret_test"]["ARN"], VersionStage="AWSPENDING"
-        )["SecretString"]
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSPENDING")[
+            "SecretString"
+        ]
     )
 
     assert new_secret_pending["password"] is not old_secret_pending["password"]

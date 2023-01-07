@@ -209,9 +209,18 @@ def set_secret(current_dict, pending_dict):
         conn = ldap_connection(current_dict)
         conn.bind()
         if conn.result.get("result") == 0:
-            extend.microsoft.modifyPassword.ad_modify_password(
+            ad_modify_password = extend.microsoft.modifyPassword.ad_modify_password(
                 conn, bind_user, new_password=new_password, old_password=old_password
             )
+            if ad_modify_password:
+                logger.info(
+                    f"setSecret: The password for {bind_user} was successfuly updated."
+                )
+            else:
+                logger.error(
+                    f"setSecret: Failed to update the password for {bind_user}."
+                )
+                ValueError("Unable to reset the users password in Directory Services")
         else:
             raise ValueError(
                 f"ldap bind failed! Connection result: {conn.result.get('result')},"
@@ -223,9 +232,7 @@ def set_secret(current_dict, pending_dict):
             f"Services user {pending_dict[DICT_KEY_USERNAME]}"
         )
         logger.error(e)
-        raise ValueError(
-            "Unable to reset the users password in Directory Services"
-        ) from Exception
+        raise ValueError("Unable to reset the users password in Directory Services")
 
 
 def test_secret(pending_dict):
