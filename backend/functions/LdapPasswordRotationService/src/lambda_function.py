@@ -131,9 +131,28 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
 
     # Now try to get the secret version, if that fails, put a new secret
     try:
-        get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
+        pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         logger.info(f"createSecret: Successfully retrieved secret for {arn}.")
-    except secrets_manager_client.exceptions.ResourceNotFoundException:
+        _, current_secret, _, _ = check_inputs(current_dict)
+        _, pending_secret, _, _ = check_inputs(pending_dict)
+        if pending_secret == current_secret:
+            logger.info(
+                f"createSecret: Pending and Current secret are equal for {arn}."
+            )
+            raise ValueError(
+                f"createSecret: Pending and Current secret are equal for {arn}."
+            )
+    except (
+        secrets_manager_client.exceptions.ResourceNotFoundException,
+        ValueError,
+    ) as e:
+        # Checks if we got an unexpected ValueError
+        if isinstance(
+            e, ValueError
+        ) and "createSecret: Pending and Current secret are equal" not in str(e):
+            logger.error("createSecret: Unknown Error.")
+            raise e
+
         # Generate a random password
         passwd = secrets_manager_client.get_random_password(
             ExcludeCharacters=EXCLUDE_CHARACTERS
@@ -457,34 +476,3 @@ def ldap_connection(dict_arg):
         logger.error("ldap_connection: ldap bind failed")
         logger.error(e)
         raise ValueError("ldap_connection: ldap bind failed") from Exception
-
-
-if __name__ == "__main__":
-    """
-    This section is not executed in lambda directly but can be used locally to debug.
-    """
-
-    event_create = {
-        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
-        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
-        "Step": "createSecret",
-    }
-    event_set = {
-        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
-        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
-        "Step": "setSecret",
-    }
-    event_test = {
-        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
-        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
-        "Step": "testSecret",
-    }
-    event_finish = {
-        "ClientRequestToken": "b672b1ee-d9a4-45ca-85d2-ce30a85197bc",
-        "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssd1-n4Y89B",
-        "Step": "finishSecret",
-    }
-
-    context = None
-
-    lambda_handler(event_test, context)

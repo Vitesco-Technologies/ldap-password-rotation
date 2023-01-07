@@ -39,3 +39,11 @@ tests: ## Run tests
 .PHONY: healthcheck
 healthcheck: ## Run tests
 	sls invoke -f app --data '{"resource": "/",  "path": "/api",  "httpMethod": "GET",  "requestContext": {  },  "multiValueQueryStringParameters": null}' 
+
+.PHONY: test
+test:
+	pytest --cov-report term-missing --cov
+
+.PHONY: test-log
+test-log:
+	pytest --cov-report term-missing --cov -vs --log-cli-level info

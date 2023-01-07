@@ -1,5 +1,6 @@
 import json
 import os
+from uuid import uuid4
 
 import boto3
 import ldap3
@@ -372,3 +373,49 @@ def test_execute_ldap_command_both_invalid(mock_secret_strings):
             json.loads(mock_secret_strings["secret_test_wrong_pw"]),
         )
     assert "ldap bind failed" in str(e.value).lower()
+
+
+############################
+# Main functionalicy tests #
+############################
+
+
+def test_lambda_create_secret(secretsmanager, mock_secrets, lambda_func):
+    client_request_token = str(uuid4())
+
+    secretsmanager.rotate_secret(
+        SecretId=mock_secrets["secret_test"]["Name"],
+        ClientRequestToken=client_request_token,
+        RotationLambdaARN=lambda_func["FunctionArn"],
+        RotationRules=dict(AutomaticallyAfterDays=60, Duration="1h"),
+        RotateImmediately=False,
+    )
+
+    try:
+        old_secret_pending = json.loads(
+            secretsmanager.get_secret_value(
+                SecretId=mock_secrets["secret_test"]["ARN"], VersionStage="AWSPENDING"
+            )["SecretString"]
+        )
+    except Exception:
+        old_secret_pending = {"password": ""}
+
+    event_create = {
+        "ClientRequestToken": client_request_token,
+        "SecretId": mock_secrets["secret_test"]["ARN"],
+        "Step": "createSecret",
+    }
+    lambda_function.lambda_handler(event_create, {})
+    secret_current = json.loads(
+        secretsmanager.get_secret_value(
+            SecretId=mock_secrets["secret_test"]["ARN"], VersionStage="AWSCURRENT"
+        )["SecretString"]
+    )
+    new_secret_pending = json.loads(
+        secretsmanager.get_secret_value(
+            SecretId=mock_secrets["secret_test"]["ARN"], VersionStage="AWSPENDING"
+        )["SecretString"]
+    )
+
+    assert new_secret_pending["password"] is not old_secret_pending["password"]
+    assert new_secret_pending["password"] is not secret_current["password"]
