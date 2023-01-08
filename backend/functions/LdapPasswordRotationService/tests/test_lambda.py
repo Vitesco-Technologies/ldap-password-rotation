@@ -1,9 +1,11 @@
 import json
+import logging
 import os
 from uuid import uuid4
 
 import boto3
 import ldap3
+import mock
 import pytest
 from ldap_test import LdapServer
 from moto import mock_lambda, mock_secretsmanager
@@ -12,6 +14,13 @@ from src import lambda_function
 from .utilities import lambda_util
 
 _region = "eu-central-1"
+
+# server is defined as global to allow us to update it when we mock
+# ldap3.extend.microsoft.modifyPassword.ad_modify_password with mock_ad_modify_password
+_server = LdapServer()
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 ############
 # fixtures #
@@ -47,15 +56,16 @@ def lambda_ldap_env(ldap_config):
 
 
 @pytest.fixture(scope="function")
-def ldap_server():
-    server = LdapServer()
+def ldap_server(config=None):
+    global _server
+    _server = LdapServer(config)
     try:
-        server.start()
+        _server.start()
     except Exception as e:
         raise e
     else:
-        yield server
-        server.stop()
+        yield _server
+        _server.stop()
 
 
 @pytest.fixture(scope="function")
@@ -416,6 +426,19 @@ def test_lambda_rotation_wrong_token(secretsmanager, get_event, lambda_func):
     assert "no stage for rotation of secret" in str(e.value).lower()
 
 
+def mock_ad_modify_password(conn, bind_user, new_password, old_password):
+    global _server
+    if _server.config["password"] == old_password:
+        _server.config["password"] = new_password
+        config = _server.config
+        _server.stop()
+        _server = LdapServer(config)
+        _server.start()
+        return True
+    else:
+        raise ValueError("Wrong Password")
+
+
 @pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
 def test_lambda_full_rotation(secretsmanager, get_event, lambda_func, ldap_server):
 
@@ -426,11 +449,6 @@ def test_lambda_full_rotation(secretsmanager, get_event, lambda_func, ldap_serve
     set_secret["Step"] = "setSecret"
     test_secret["Step"] = "testSecret"
     finish_secret["Step"] = "finishSecret"
-
-    print(create_secret)
-    print(set_secret)
-    print(test_secret)
-    print(finish_secret)
 
     client_request_token = get_event["ClientRequestToken"]
     secret_id = get_event["SecretId"]
@@ -468,3 +486,158 @@ def test_lambda_full_rotation(secretsmanager, get_event, lambda_func, ldap_serve
 
     assert new_secret_pending["password"] is not old_secret_pending["password"]
     assert new_secret_pending["password"] is not secret_current["password"]
+
+    with mock.patch(
+        "ldap3.extend.microsoft.modifyPassword.ad_modify_password",
+        side_effect=mock_ad_modify_password,
+    ):
+        # Set secret tests
+        old_config_pw = ldap_server.config["password"]
+
+        lambda_function.lambda_handler(set_secret, {})
+
+        new_config_pw = ldap_server.config["password"]
+
+        assert old_config_pw != new_config_pw
+        assert new_config_pw == new_secret_pending["password"]
+
+    try:
+        lambda_function.lambda_handler(test_secret, {})
+    except Exception:
+        pytest.fail("Unexpected Error Testing the new secret")
+
+    lambda_function.lambda_handler(finish_secret, {})
+
+    new_secret_current = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSCURRENT")[
+            "SecretString"
+        ]
+    )
+    assert new_config_pw == new_secret_current["password"]
+
+
+@pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
+def test_lambda_rotation_ad_error(secretsmanager, get_event, lambda_func, ldap_server):
+
+    create_secret = get_event.copy()
+    set_secret = get_event.copy()
+    test_secret = get_event.copy()
+    finish_secret = get_event.copy()
+    set_secret["Step"] = "setSecret"
+    test_secret["Step"] = "testSecret"
+    finish_secret["Step"] = "finishSecret"
+
+    client_request_token = get_event["ClientRequestToken"]
+    secret_id = get_event["SecretId"]
+
+    # Create secret tests
+    secretsmanager.rotate_secret(
+        SecretId=secret_id,
+        ClientRequestToken=client_request_token,
+        RotationLambdaARN=lambda_func["FunctionArn"],
+        RotationRules=dict(AutomaticallyAfterDays=60, Duration="1h"),
+        RotateImmediately=False,
+    )
+
+    lambda_function.lambda_handler(create_secret, {})
+    with mock.patch(
+        "ldap3.extend.microsoft.modifyPassword.ad_modify_password", return_value=False
+    ):
+        with pytest.raises(ValueError) as e:
+            lambda_function.lambda_handler(set_secret, {})
+        assert "unable to reset the users password" in str(e.value).lower()
+
+
+@pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
+def test_lambda_full_rotation_duplicated_events(
+    secretsmanager, get_event, lambda_func, ldap_server
+):
+
+    create_secret = get_event.copy()
+    set_secret = get_event.copy()
+    test_secret = get_event.copy()
+    finish_secret = get_event.copy()
+    set_secret["Step"] = "setSecret"
+    test_secret["Step"] = "testSecret"
+    finish_secret["Step"] = "finishSecret"
+
+    client_request_token = get_event["ClientRequestToken"]
+    secret_id = get_event["SecretId"]
+
+    # Create secret tests
+    secretsmanager.rotate_secret(
+        SecretId=secret_id,
+        ClientRequestToken=client_request_token,
+        RotationLambdaARN=lambda_func["FunctionArn"],
+        RotationRules=dict(AutomaticallyAfterDays=60, Duration="1h"),
+        RotateImmediately=False,
+    )
+
+    try:
+        old_secret_pending = json.loads(
+            secretsmanager.get_secret_value(
+                SecretId=secret_id, VersionStage="AWSPENDING"
+            )["SecretString"]
+        )
+    except Exception:
+        old_secret_pending = {"password": ""}
+
+    lambda_function.lambda_handler(create_secret, {})
+    lambda_function.lambda_handler(create_secret, {})
+
+    secret_current = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSCURRENT")[
+            "SecretString"
+        ]
+    )
+    new_secret_pending = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSPENDING")[
+            "SecretString"
+        ]
+    )
+
+    assert new_secret_pending["password"] is not old_secret_pending["password"]
+    assert new_secret_pending["password"] is not secret_current["password"]
+
+    with mock.patch(
+        "ldap3.extend.microsoft.modifyPassword.ad_modify_password",
+        side_effect=mock_ad_modify_password,
+    ):
+        # Set secret tests
+        old_config_pw = ldap_server.config["password"]
+
+        lambda_function.lambda_handler(set_secret, {})
+        lambda_function.lambda_handler(set_secret, {})
+
+        new_config_pw = ldap_server.config["password"]
+
+        assert old_config_pw != new_config_pw
+        assert new_config_pw == new_secret_pending["password"]
+
+    try:
+        lambda_function.lambda_handler(test_secret, {})
+        lambda_function.lambda_handler(test_secret, {})
+    except Exception:
+        pytest.fail("Unexpected Error Testing the new secret")
+
+    lambda_function.lambda_handler(finish_secret, {})
+
+    new_secret_current = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSCURRENT")[
+            "SecretString"
+        ]
+    )
+    assert new_config_pw == new_secret_current["password"]
+
+    lambda_function.lambda_handler(create_secret, {})
+    lambda_function.lambda_handler(set_secret, {})
+    lambda_function.lambda_handler(test_secret, {})
+    lambda_function.lambda_handler(finish_secret, {})
+
+    secret_after_duplicate_events = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSCURRENT")[
+            "SecretString"
+        ]
+    )
+
+    assert new_secret_current["password"] == secret_after_duplicate_events["password"]

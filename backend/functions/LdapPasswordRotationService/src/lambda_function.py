@@ -220,7 +220,9 @@ def set_secret(current_dict, pending_dict):
                 logger.error(
                     f"setSecret: Failed to update the password for {bind_user}."
                 )
-                ValueError("Unable to reset the users password in Directory Services")
+                raise ValueError(
+                    "Unable to reset the users password in Directory Services"
+                )
         else:
             raise ValueError(
                 f"ldap bind failed! Connection result: {conn.result.get('result')},"
