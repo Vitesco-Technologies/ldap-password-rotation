@@ -1,5 +1,0 @@
-{
-    "ClientRequestToken": "4a3eed88-cfa6-4452-b121-9a7259ecfbcf",
-    "SecretId": "arn:aws:secretsmanager:eu-central-1:000894882174:secret:/datalake/_global/api/sssdtest-qTpL5L",
-    "Step": "test"
-}

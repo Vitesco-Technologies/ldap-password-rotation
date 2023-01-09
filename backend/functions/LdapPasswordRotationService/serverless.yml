@@ -32,6 +32,14 @@ provider:
     SERVICE: ${self:service}
     STAGE: ${self:provider.stage}
     VPC_ID: ${self:custom.file.VPC_ID}
+    VPC_ID: ${self:custom.file.DICT_KEY_USERNAME}
+    VPC_ID: ${self:custom.file.DICT_KEY_PASSWORD}
+    VPC_ID: ${self:custom.file.DICT_KEY_USERPRINCIPALNAME}
+    VPC_ID: ${self:custom.file.DICT_KEY_BIND_DN}
+    VPC_ID: ${self:custom.file.SECRETS_MANAGER_REGION}
+    VPC_ID: ${self:custom.file.EXCLUDE_CHARACTERS}
+    VPC_ID: ${self:custom.file.LDAP_SERVER_LIST}
+    VPC_ID: ${self:custom.file.LDAP_SERVER_PORT}
   vpc:
     securityGroupIds:
       - Ref: LambdaSecurityGroup

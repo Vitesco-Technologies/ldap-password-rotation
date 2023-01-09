@@ -32,14 +32,6 @@ undeploy: ## undeploy with serverless framework
 	@[ "${stage}" ] || ( echo ">> stage is not set call with make deploy stage=<app stage>"; exit 1 )
 	pipenv run sls remove --stage=${stage}
 
-.PHONY: tests
-tests: ## Run tests
-	pipenv run tests
-
-.PHONY: healthcheck
-healthcheck: ## Run tests
-	sls invoke -f app --data '{"resource": "/",  "path": "/api",  "httpMethod": "GET",  "requestContext": {  },  "multiValueQueryStringParameters": null}' 
-
 .PHONY: test
 test:
 	pytest --cov-report term-missing --cov

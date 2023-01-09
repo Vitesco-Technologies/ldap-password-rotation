@@ -7,6 +7,7 @@ from ldap3 import Connection, Server, extend
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
 DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "username"
 DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
 DICT_KEY_USERPRINCIPALNAME = (
@@ -16,11 +17,13 @@ DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_BIND_DN") or "ldap_default_bind_dn"
 
 SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
 EXCLUDE_CHARACTERS = os.environ.get("EXCLUDE_CHARACTERS") or "/'\"\\"
+
 LDAP_SERVER_LIST = (
     os.environ.get("LDAP_SERVER_LIST")
     or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'  # noqa: E501
 )
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
+
 LDAP_USE_SSL = True
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
 LDAP_BIND_PENDING_CREDS_SUCCESSFUL = "LDAP_BIND_USING_PENDING_CREDS_SUCCESSFUL"
