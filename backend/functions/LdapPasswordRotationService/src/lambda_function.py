@@ -16,7 +16,9 @@ DICT_KEY_USERPRINCIPALNAME = (
 DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_BIND_DN") or "ldap_default_bind_dn"
 
 SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
-EXCLUDE_CHARACTERS = os.environ.get("EXCLUDE_CHARACTERS") or "/'\"\\"
+EXCLUDE_CHARACTERS_USER = os.environ.get("EXCLUDE_CHARACTERS_USER") or "$/'\"\\"
+EXCLUDE_CHARACTERS_PW = os.environ.get("EXCLUDE_CHARACTERS_PW") or "@$/`'\"\\"
+EXCLUDE_CHARACTERS_NEW_PW = os.environ.get("EXCLUDE_CHARACTERS_NEW_PW") or "@$/`'\"\\"
 
 LDAP_SERVER_LIST = (
     os.environ.get("LDAP_SERVER_LIST")
@@ -158,7 +160,7 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
 
         # Generate a random password
         passwd = secrets_manager_client.get_random_password(
-            ExcludeCharacters=EXCLUDE_CHARACTERS
+            ExcludeCharacters=EXCLUDE_CHARACTERS_NEW_PW
         )
         current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
 
@@ -418,11 +420,11 @@ def check_inputs(dict_arg):
     user_principal_name = dict_arg.get(DICT_KEY_USERPRINCIPALNAME) or None
     bind_dn = dict_arg.get(DICT_KEY_BIND_DN) or None
 
-    username_check_list = [char in username for char in EXCLUDE_CHARACTERS]
+    username_check_list = [char in username for char in EXCLUDE_CHARACTERS_USER]
     if True in username_check_list:
         raise ValueError("check_inputs: Invalid character in username")
 
-    password_check_list = [char in password for char in EXCLUDE_CHARACTERS]
+    password_check_list = [char in password for char in EXCLUDE_CHARACTERS_PW]
     if True in password_check_list:
         raise ValueError("check_inputs: Invalid character in password")
 

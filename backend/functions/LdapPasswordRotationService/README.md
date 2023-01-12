@@ -35,3 +35,14 @@ In case you don't have [Make](https://www.gnu.org/software/make/) you can still 
 1. Update the config file for the environment (located in the config folder) you want to deploy.
    1. `config/serverless.dev.yml` for the development environment
 2. Run `make deploys stage=dev|qa|prod` to deploy to dev, qa or prod environment.
+
+### FAQ
+
+* The password isn't updating:
+  * Go to AWS > Lambda > Functions > LdapPasswordRotation
+    * Open Monitoring > "View CloudWatch logs"
+      * Error Message: `check_inputs: Invalid character in`
+        * Check if your current user or password has any of the `EXCLUDE_CHARACTERS`
+        * Update the `EXCLUDE_CHARACTERS` rules to your needs
+      * Error Message: `setSecret: Failed to update the password`
+        * Some AD systems limit how often you can rotate the password. For example, you might not be able to change it more than once a day.
