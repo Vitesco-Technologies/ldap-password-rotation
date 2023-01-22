@@ -3,17 +3,13 @@ import logging
 import os
 
 import boto3
-from ldap3 import Connection, Server, extend
+from ldap3 import Connection, Server, SUBTREE, extend
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "username"
 DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
-DICT_KEY_USERPRINCIPALNAME = (
-    os.environ.get("DICT_KEY_USERPRINCIPALNAME") or "userPrincipalName"
-)
-DICT_KEY_BIND_DN = os.environ.get("DICT_KEY_BIND_DN") or "ldap_default_bind_dn"
 
 SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
 EXCLUDE_CHARACTERS_USER = os.environ.get("EXCLUDE_CHARACTERS_USER") or "$/'\"\\"
@@ -25,6 +21,7 @@ LDAP_SERVER_LIST = (
     or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'  # noqa: E501
 )
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
+BASE_DN = os.environ.get("BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
 
 LDAP_USE_SSL = True
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
@@ -138,8 +135,8 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
     try:
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         logger.info(f"createSecret: Successfully retrieved secret for {arn}.")
-        _, current_secret, _, _ = check_inputs(current_dict)
-        _, pending_secret, _, _ = check_inputs(pending_dict)
+        _, current_secret = check_inputs(current_dict)
+        _, pending_secret = check_inputs(pending_dict)
         if pending_secret == current_secret:
             logger.info(
                 f"createSecret: Pending and Current secret are equal for {arn}."
@@ -208,11 +205,11 @@ def set_secret(current_dict, pending_dict):
         return
 
     try:
-        _, old_password, _, _ = check_inputs(current_dict)
-        _, new_password, _, _ = check_inputs(pending_dict)
-        bind_user = check_bind_user(pending_dict)
+        user, old_password = check_inputs(current_dict)
+        _, new_password = check_inputs(pending_dict)
         conn = ldap_connection(current_dict)
         conn.bind()
+        bind_user = get_user_dn(conn=conn, user=user, base_dn=BASE_DN)
         if conn.result.get("result") == 0:
             ad_modify_password = extend.microsoft.modifyPassword.ad_modify_password(
                 conn, bind_user, new_password=new_password, old_password=old_password
@@ -405,20 +402,15 @@ def check_inputs(dict_arg):
     """# noqa: E501
     Check username and password for invalid characters
     Args:
-        dict_arg (dictionary): Dictionary containing current credentials
+        dict_arg(dictionary): Dictionary containing current credentials
     Returns:
-        username(string): Username from Directory Service
+        username(string): Username from Directory Service (userPrincipalName)
         password(string): Password of username from Directory Service
-        user_principal_name(string): (optional) LDAP userPrincipalName attribute
-        bind_dn(string): (optional) LDAP distinguishedName is a sequence of relative distinguished names (RDN) connected by commas
     Raises:
         Value Error: If username or password has characters from exclude list.
     """
     username = dict_arg[DICT_KEY_USERNAME]
     password = dict_arg[DICT_KEY_PASSWORD]
-    # Optional fields
-    user_principal_name = dict_arg.get(DICT_KEY_USERPRINCIPALNAME) or None
-    bind_dn = dict_arg.get(DICT_KEY_BIND_DN) or None
 
     username_check_list = [char in username for char in EXCLUDE_CHARACTERS_USER]
     if True in username_check_list:
@@ -428,31 +420,40 @@ def check_inputs(dict_arg):
     if True in password_check_list:
         raise ValueError("check_inputs: Invalid character in password")
 
-    return username, password, user_principal_name, bind_dn
+    return username, password
 
 
-def check_bind_user(dict_arg):
+def get_user_dn(conn, user, base_dn=BASE_DN):
     """# noqa: E501
     Checks for the most precise bind user available
     Args:
-        dict_arg (dictionary): Dictionary containing the current secret
+        conn(Connection): The Connection object is used to send operation requests to the LDAP Server.
+        username(string): Username from Directory Service (userPrincipalName)
+        base_dn(string): The base of the search request
     Returns:
-        user(string): User string to bind to the Directory Service
+        user_dn(string): User string to bind to the Directory Service
     Raises:
-        Value Error: If username or password has characters from exclude list.
+        Value Error: If the user DN can't be found
     """
-    username, password, user_principal_name, bind_dn = check_inputs(dict_arg)
-    if bind_dn:
-        user = bind_dn
-    elif user_principal_name:
-        user = user_principal_name
-    else:
-        user = username
 
-    if user:
-        return user
+    search_filter = "(&(userPrincipalName=" + user + "))"
+    conn.search(
+        search_base=base_dn,
+        search_filter=search_filter,
+        search_scope=SUBTREE,
+        attributes=["userPrincipalName"],
+    )
+
+    user_dn = None
+
+    for entry in conn.response:
+        if entry.get("dn") and user in entry.get("attributes").get("userPrincipalName"):
+            user_dn = entry.get("dn")
+
+    if user_dn:
+        return user_dn
     else:
-        raise ValueError("check_bind_user: Invalid bind user")
+        raise ValueError("get_user_dn: User DN not found")
 
 
 def ldap_connection(dict_arg):
@@ -467,8 +468,7 @@ def ldap_connection(dict_arg):
     Raises:
         Value Error: If the ldap connection fails.
     """
-    username, password, user_principal_name, bind_dn = check_inputs(dict_arg)
-    bind_user = check_bind_user(dict_arg)
+    username, password = check_inputs(dict_arg)
     ldap_servers_list = json.loads(LDAP_SERVER_LIST)
 
     ldap_servers = [
@@ -476,7 +476,7 @@ def ldap_connection(dict_arg):
         for host in ldap_servers_list
     ]
     try:
-        conn = Connection(ldap_servers, user=bind_user, password=password)
+        conn = Connection(ldap_servers, user=username, password=password)
         conn.bind()
         if conn.result.get("result") == 0:
             return conn

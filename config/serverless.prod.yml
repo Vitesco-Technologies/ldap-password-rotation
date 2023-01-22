@@ -1,14 +1,12 @@
 VPC_ID: vpc-0d43eda6a96215a22 # vpc_id
 SUBNET1_ID: subnet-02ecfbaf8709fc021 # the subnets of the vpc
 SUBNET2_ID: subnet-065e73e2c2ee20d2c # the subnets of the vpc
-VPC_ENDPOINT_ID: "vpce-05a509106306d20ad"
 DICT_KEY_USERNAME: "username"
 DICT_KEY_PASSWORD: "password"
-DICT_KEY_USERPRINCIPALNAME: "userPrincipalName"
-DICT_KEY_BIND_DN: "ldap_default_bind_dn"
 SECRETS_MANAGER_REGION: "eu-central-1"
 EXCLUDE_CHARACTERS_USER: "$/`'\"\\"
 EXCLUDE_CHARACTERS_PW: "/'\"\\"
 EXCLUDE_CHARACTERS_NEW_PW: "@$/`'\"\\"
 LDAP_SERVER_LIST: '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'
 LDAP_SERVER_PORT: "636"
+BASE_DN: "dc=vt1,dc=vitesco,dc=com"
