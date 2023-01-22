@@ -1,0 +1,36 @@
+name: Pytest
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: "OS version passed from the caller workflow"
+        default: "ubuntu-latest"
+        required: false
+        type: string
+      python-version:
+        description: "Python version passed from the caller workflow"
+        default: "3.9"
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    name: Python ${{ inputs.python-version }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Display Python version
+        run: python --version
+      - name: Install requirements
+        run: pip install -r requirements-dev.txt
+      - name: Run Pytests
+        run: pytest --cov-report term-missing --cov

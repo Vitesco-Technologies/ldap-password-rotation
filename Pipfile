@@ -8,7 +8,6 @@ ldap3 = "*"
 boto3 = "*"
 
 [dev-packages]
-pipenv = ">=2022.12.17"
 pytest = "*"
 python-ldap-test = "*"
 pytest-cov = "*"
@@ -17,6 +16,7 @@ docker = "*"
 uuid = "*"
 mock = "*"
 black = "*"
+coverage-badge = "*"
 
 [requires]
-python_version = "3.9"
+python_version = ">=3.7"

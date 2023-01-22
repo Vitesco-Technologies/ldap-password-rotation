@@ -1,0 +1,12 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  call-workflow:
+    uses: ./.github/workflows/pytest.yml
+    with:
+      os: "windows-latest"
+      python-version: "3.9"
