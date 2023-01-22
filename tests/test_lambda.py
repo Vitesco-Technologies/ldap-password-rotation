@@ -39,12 +39,11 @@ def aws_credentials():
 
 @pytest.fixture(scope="function", autouse=True)
 def lambda_env():
-    lambda_function.DICT_KEY_USERNAME = "username"
+    lambda_function.DICT_KEY_USERNAME = "bind_dn"
     lambda_function.DICT_KEY_PASSWORD = "password"
-    lambda_function.DICT_KEY_USERPRINCIPALNAME = "userPrincipalName"
-    lambda_function.DICT_KEY_BIND_DN = "bind_dn"
     lambda_function.SECRETS_MANAGER_REGION = _region
     lambda_function.EXCLUDE_CHARACTERS = "/'\"\\"
+    lambda_function.BASE_DN = "dc=example,dc=com"
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -57,24 +56,47 @@ def lambda_ldap_env(ldap_config):
 
 @pytest.fixture(scope="function")
 def ldap_server(config=None):
+    if config is None:
+        config = {
+            "port": 10389,
+            "bind_dn": "cn=admin,dc=example,dc=com",
+            "password": "password",
+            "base": {
+                "attributes": {"dc": "example"},
+                "dn": "dc=example,dc=com",
+                "objectclass": ["domain"],
+            },
+            "entries": [
+                {
+                    "objectclass": "domain",
+                    "dn": "dc=users,dc=example,dc=com",
+                    "attributes": {"dc": "users"},
+                },
+                {
+                    "objectclass": "organization",
+                    "dn": "o=foocompany,dc=users,dc=example,dc=com",
+                    "attributes": {"o": "foocompany"},
+                },
+                {
+                    "objectclass": "user",
+                    "dn": "cn=admin,dc=example,dc=com",
+                    "attributes": {
+                        "o": "foocompany",
+                        "userPrincipalName": "cn=admin,dc=example,dc=com",
+                    },
+                },
+            ],
+        }
     global _server
     _server = LdapServer(config)
-    try:
-        _server.start()
-    except Exception as e:
-        raise e
-    else:
-        yield _server
-        _server.stop()
+    _server.start()
+    yield _server
+    _server.stop()
 
 
 @pytest.fixture(scope="function")
 def ldap_config(ldap_server, lambda_env):
     config = ldap_server.config
-    config[lambda_function.DICT_KEY_USERNAME] = "testuser"
-    config[lambda_function.DICT_KEY_USERPRINCIPALNAME] = config[
-        lambda_function.DICT_KEY_BIND_DN
-    ]
     yield config
 
 
@@ -115,20 +137,12 @@ def mock_secrets(secretsmanager, ldap_config):
         lambda_function.DICT_KEY_PASSWORD: ldap_config[
             lambda_function.DICT_KEY_PASSWORD
         ],
-        lambda_function.DICT_KEY_USERPRINCIPALNAME: ldap_config[
-            lambda_function.DICT_KEY_USERPRINCIPALNAME
-        ],
-        lambda_function.DICT_KEY_BIND_DN: ldap_config[lambda_function.DICT_KEY_BIND_DN],
     }
     secret_dict_wrong_pw = {
         lambda_function.DICT_KEY_USERNAME: ldap_config[
             lambda_function.DICT_KEY_USERNAME
         ],
         lambda_function.DICT_KEY_PASSWORD: "wrong",
-        lambda_function.DICT_KEY_USERPRINCIPALNAME: ldap_config[
-            lambda_function.DICT_KEY_USERPRINCIPALNAME
-        ],
-        lambda_function.DICT_KEY_BIND_DN: ldap_config[lambda_function.DICT_KEY_BIND_DN],
     }
     secret_dict_no_user = {lambda_function.DICT_KEY_PASSWORD: ldap_config["password"]}
     secret_dict_no_pw = {
@@ -185,16 +199,34 @@ def get_event(request, mock_secrets):
 def test_ldap_config(ldap_config):
     # Checks if ldap_test settings change
     assert ldap_config == {
+        "port": 10389,
+        lambda_function.DICT_KEY_USERNAME: "cn=admin,dc=example,dc=com",
+        lambda_function.DICT_KEY_PASSWORD: "password",
         "base": {
             "attributes": {"dc": "example"},
             "dn": "dc=example,dc=com",
             "objectclass": ["domain"],
         },
-        lambda_function.DICT_KEY_USERNAME: "testuser",
-        lambda_function.DICT_KEY_BIND_DN: "cn=admin,dc=example,dc=com",
-        lambda_function.DICT_KEY_USERPRINCIPALNAME: "cn=admin,dc=example,dc=com",
-        lambda_function.DICT_KEY_PASSWORD: "password",
-        "port": 10389,
+        "entries": [
+            {
+                "objectclass": "domain",
+                "dn": "dc=users,dc=example,dc=com",
+                "attributes": {"dc": "users"},
+            },
+            {
+                "objectclass": "organization",
+                "dn": "o=foocompany,dc=users,dc=example,dc=com",
+                "attributes": {"o": "foocompany"},
+            },
+            {
+                "objectclass": "user",
+                "dn": "cn=admin,dc=example,dc=com",
+                "attributes": {
+                    "o": "foocompany",
+                    "userPrincipalName": "cn=admin,dc=example,dc=com",
+                },
+            },
+        ],
     }
 
 
@@ -230,16 +262,10 @@ def test_ldap_conn(ldap_server, ldap_config):
 
 
 def test_check_inputs(ldap_config):
-    username, password, user_principal_name, bind_dn = lambda_function.check_inputs(
-        ldap_config
-    )
+    username, password = lambda_function.check_inputs(ldap_config)
 
     assert username is ldap_config[lambda_function.DICT_KEY_USERNAME]
     assert password is ldap_config[lambda_function.DICT_KEY_PASSWORD]
-    assert (
-        user_principal_name is ldap_config[lambda_function.DICT_KEY_USERPRINCIPALNAME]
-    )
-    assert bind_dn is ldap_config[lambda_function.DICT_KEY_BIND_DN]
 
 
 def test_check_inputs_invalid_password(ldap_config):
@@ -258,41 +284,25 @@ def test_check_inputs_invalid_user(ldap_config):
     assert "invalid character in user" in str(e.value).lower()
 
 
-def test_check_bind_user(ldap_config):
-    dict_arg = ldap_config
-    dict_arg.pop(lambda_function.DICT_KEY_USERPRINCIPALNAME, None)
-    dict_arg.pop(lambda_function.DICT_KEY_BIND_DN, None)
-    assert (
-        lambda_function.check_bind_user(dict_arg)
-        is ldap_config[lambda_function.DICT_KEY_USERNAME]
+def test_get_user_dn(ldap_server, ldap_config):
+    conn = lambda_function.ldap_connection(ldap_config)
+    result = lambda_function.get_user_dn(
+        conn=conn,
+        user=ldap_config[lambda_function.DICT_KEY_USERNAME],
+        base_dn=lambda_function.BASE_DN,
     )
+    assert result == "cn=admin,dc=example,dc=com"
 
 
-def test_check_bind_userprincipal(ldap_config):
-    dict_arg = ldap_config
-    dict_arg.pop(lambda_function.DICT_KEY_BIND_DN, None)
-    assert (
-        lambda_function.check_bind_user(dict_arg)
-        is ldap_config[lambda_function.DICT_KEY_USERPRINCIPALNAME]
-    )
-
-
-def test_check_bind_userdnl(ldap_config):
-    dict_arg = ldap_config
-    assert (
-        lambda_function.check_bind_user(dict_arg)
-        is ldap_config[lambda_function.DICT_KEY_BIND_DN]
-    )
-
-
-def test_check_bind_user_invalid(ldap_config):
-    dict_arg = ldap_config
-    dict_arg[lambda_function.DICT_KEY_USERNAME] = ""
-    dict_arg[lambda_function.DICT_KEY_USERPRINCIPALNAME] = ""
-    dict_arg[lambda_function.DICT_KEY_BIND_DN] = ""
+def test_get_user_dn_wrong(ldap_server, ldap_config):
+    conn = lambda_function.ldap_connection(ldap_config)
     with pytest.raises(ValueError) as e:
-        lambda_function.check_bind_user(dict_arg)
-    assert "Invalid bind user" in str(e.value)
+        lambda_function.get_user_dn(
+            conn=conn,
+            user="wrong",
+            base_dn=lambda_function.BASE_DN,
+        )
+    assert "user dn not found" in str(e.value).lower()
 
 
 def test_ldap_connection(ldap_config):
