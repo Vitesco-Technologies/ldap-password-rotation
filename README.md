@@ -2,19 +2,46 @@
 
 The LDAP Password Rotation Service offers a lambda function that integrates with AWS Secrets Manager and can update the user password to a new random password and update it in AWS Secrets Manager.
 
-The AWS Lambda Function expects to receive a key/value (JSON) secret from AWS Secrets Manager, with a field with the user in which the password should be rotated and the current password. The username needs to use the "distinguishedName" format (cn=user,dc=example,dc=com)
-You can find it by going to <https://ldapsearch.vitesco.io/>, searching for "all attributes," and checking the value of the `distinguishedName`.
-The "username" doesn't need to be called "username" in the secrets manager. Instead, you can configure the function to check different field names for the username. Alternatively, you can specify multiple "username" fields with other formats, and the order that the function selects the username is the following:
+The AWS Lambda Function expects to receive a key/value (JSON) secret from AWS Secrets Manager, with a field with the user in which the password should be rotated and the current password. The username has to be the user principal name used to autenticate with LDAP.
 
-1. DICT_KEY_BIND_DN
-2. DICT_KEY_USERPRINCIPALNAME
-3. DICT_KEY_USERNAME
+## Quick Start
 
-## Requirments
-
-You'll need to have Python with pipenv and NodeJS with npm installed.
+You'll need to have [Python (>=3.9)](https://www.python.org/) with [pipenv](https://github.com/pypa/pipenv), [NodeJS](https://nodejs.org/) with [npm](https://www.npmjs.com/) installed, [AWS CLI](https://aws.amazon.com/cli/).
 
 Optional: [Make](https://www.gnu.org/software/make/)
+
+1. Make sure your default AWS credentials are configured to the environment where you want to deploy this project
+2. Update the config file for the environment (located in the config folder) you want to deploy
+   1. `config/serverless.dev.yml` for the development environment
+3. Setup the project
+   1. `make setup`
+4. Deploy the project
+   1. Run `make deploy stage=dev` to deploy with the `config/serverless.dev.yml` configurations
+5. Create AWS Secrets Manager secret
+
+```bash
+aws secretsmanager create-secret \
+    --name MyTestSecret \
+    --description "My test secret created with the CLI." \
+    --secret-string "{\"username\":\"example@example.com\",\"password\":\"EXAMPLE-PASSWORD\"}"
+```
+
+6. Create secret rotation
+
+```bash
+aws secretsmanager rotate-secret \
+    --secret-id MyTestSecret \
+    --rotation-lambda-arn arn:aws:lambda:eu-central-1:1234566789012:function:LdapPasswordRotation-dev-app \
+    --rotation-rules "{\"ScheduleExpression\": \"rate(10 days)\"}"
+```
+
+7. Check that the secret has a rotation lambda configured
+   1. `aws secretsmanager describe-secret --secret-id MyTestSecret`
+
+8. Check that your secret password was rotated
+   1. `aws secretsmanager get-secret-value --secret-id MyTestSecret`
+
+## Make commands
 
 We have a Makefile file with targets to:
 
@@ -34,7 +61,7 @@ In case you don't have [Make](https://www.gnu.org/software/make/) you can still 
 
 1. Update the config file for the environment (located in the config folder) you want to deploy.
    1. `config/serverless.dev.yml` for the development environment
-2. Run `make deploys stage=dev|qa|prod` to deploy to dev, qa or prod environment.
+2. Run `make deploy stage=dev|qa|prod` to deploy to dev, qa or prod environment.
 
 ### FAQ
 
