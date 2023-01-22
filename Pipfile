@@ -5,10 +5,10 @@ name = "pypi"
 
 [packages]
 ldap3 = "*"
+boto3 = "*"
 
 [dev-packages]
-boto3 = "*"
-pipenv = "==2022.12.17"
+pipenv = ">=2022.12.17"
 pytest = "*"
 python-ldap-test = "*"
 pytest-cov = "*"
@@ -16,6 +16,7 @@ moto = "*"
 docker = "*"
 uuid = "*"
 mock = "*"
+black = "*"
 
 [requires]
 python_version = "3.9"

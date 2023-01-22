@@ -1,1 +1,6 @@
 layer/python/**
+node_modules
+.venv
+.serverless
+.pytest_cache
+.coverage
