@@ -5,13 +5,14 @@
 [![macOs](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/macos.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/macos.yml)
 [![Windows](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/windows.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/windows.yml)
 
-![Python <=3.5](https://img.shields.io/badge/python-<=3.5-red.svg)
-![Python 3.6](https://img.shields.io/badge/python-3.6-yellow.svg)
-![Python 3.7](https://img.shields.io/badge/python-3.7-green.svg)
-![Python 3.8](https://img.shields.io/badge/python-3.8-green.svg)
-![Python 3.9](https://img.shields.io/badge/python-3.9-green.svg)
-![Python 3.10](https://img.shields.io/badge/python-3.10-green.svg)
-![Python 3.11](https://img.shields.io/badge/python-3.11-green.svg)
+![Python <=3.6](https://img.shields.io/badge/python-<=3.6-red.svg)
+
+[![Python 3.7](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.7.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.7.yml)
+[![Python 3.8](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.8.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.8.yml)
+[![Python 3.9](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.9.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.9.yml)
+[![Python 3.10](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.10.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.10.yml)
+[![Python 3.11](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.11.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.11.yml)
+
 ![Python >=3.12](https://img.shields.io/badge/python->=3.12-greenyellow.svg)
 
 The LDAP Password Rotation Service offers a lambda function that integrates with AWS Secrets Manager and can update the user password to a new random password and update it in AWS Secrets Manager.
