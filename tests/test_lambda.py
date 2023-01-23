@@ -7,11 +7,11 @@ import boto3
 import ldap3
 import mock
 import pytest
-from ldap_test import LdapServer
 from moto import mock_lambda, mock_secretsmanager
 from src import lambda_function
 
 from .utilities import lambda_util
+from .utilities.ldap_test import LdapServer
 
 _region = "eu-central-1"
 
