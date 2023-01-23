@@ -1,8 +1,7 @@
 {
     "name": "ldap-password-rotation-service",
     "version": "1.0.0",
-    "description": "api template for datalake microservice",
-    "main": "index.js",
+    "description": "The LDAP Password Rotation Service offers a lambda function that integrates with AWS Secrets Manager and can update the user password to a new random password and update it in AWS Secrets Manager.",
     "author": "daniel.dias@vitesco.com",
     "devDependencies": {
         "serverless": "^3.26.0",

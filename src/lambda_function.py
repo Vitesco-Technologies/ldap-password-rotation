@@ -18,10 +18,10 @@ EXCLUDE_CHARACTERS_NEW_PW = os.environ.get("EXCLUDE_CHARACTERS_NEW_PW") or "@$/`
 
 LDAP_SERVER_LIST = (
     os.environ.get("LDAP_SERVER_LIST")
-    or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'  # noqa: E501
+    or '["ldaps://vt1dcsrv1001.vt1.example.com", "ldaps://vt1dcsrv1002.vt1.example.com"]'  # noqa: E501
 )
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
-BASE_DN = os.environ.get("BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
+BASE_DN = os.environ.get("BASE_DN") or "dc=vt1,dc=example,dc=com"
 
 LDAP_USE_SSL = True
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
