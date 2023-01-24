@@ -9,7 +9,6 @@ boto3 = "*"
 
 [dev-packages]
 pytest = "*"
-python-ldap-test = "*"
 pytest-cov = "*"
 moto = "*"
 docker = "*"
@@ -17,6 +16,7 @@ uuid = "*"
 mock = "*"
 black = "*"
 coverage-badge = "*"
+py4j = "*"
 
 [requires]
 python_version = ">=3.7"
