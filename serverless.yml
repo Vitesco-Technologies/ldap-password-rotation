@@ -46,8 +46,15 @@ provider:
       - ${self:custom.file.SUBNET2_ID}
   iam:
     role:
-      managedPolicies:
-        - "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+      statements:
+        - Effect: 'Allow'
+          Resource: '*'
+          Action:
+            - 'secretsmanager:DescribeSecret'
+            - 'secretsmanager:GetRandomPassword'
+            - 'secretsmanager:GetSecretValue'
+            - 'secretsmanager:PutSecretValue'
+            - 'secretsmanager:UpdateSecretVersionStage'
 
 custom:
   file: ${file(./config/serverless.${self:provider.stage}.yml)}
@@ -83,13 +90,6 @@ resources:
         SecurityGroupEgress:
           - IpProtocol: -1
             CidrIp: 0.0.0.0/0
-        SecurityGroupIngress:
-          - IpProtocol: -1
-            CidrIp: 10.0.0.0/8
-          - IpProtocol: -1
-            CidrIp: 172.16.0.0/12
-          - IpProtocol: -1
-            CidrIp: 192.168.0.0/16
         VpcId: ${self:custom.file.VPC_ID}
     SecretsManagerInvokePermission:
       Type: AWS::Lambda::Permission
