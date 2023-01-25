@@ -31,6 +31,7 @@ provider:
     VPC_ID: ${self:custom.file.VPC_ID}
     DICT_KEY_USERNAME: ${self:custom.file.DICT_KEY_USERNAME}
     DICT_KEY_PASSWORD: ${self:custom.file.DICT_KEY_PASSWORD}
+    DICT_KEY_DN: ${self:custom.file.DICT_KEY_DN}
     SECRETS_MANAGER_REGION: ${self:custom.file.SECRETS_MANAGER_REGION}
     EXCLUDE_CHARACTERS_USER: ${self:custom.file.EXCLUDE_CHARACTERS_USER}
     EXCLUDE_CHARACTERS_PW: ${self:custom.file.EXCLUDE_CHARACTERS_PW}
@@ -47,14 +48,14 @@ provider:
   iam:
     role:
       statements:
-        - Effect: 'Allow'
-          Resource: '*'
+        - Effect: "Allow"
+          Resource: "*"
           Action:
-            - 'secretsmanager:DescribeSecret'
-            - 'secretsmanager:GetRandomPassword'
-            - 'secretsmanager:GetSecretValue'
-            - 'secretsmanager:PutSecretValue'
-            - 'secretsmanager:UpdateSecretVersionStage'
+            - "secretsmanager:DescribeSecret"
+            - "secretsmanager:GetRandomPassword"
+            - "secretsmanager:GetSecretValue"
+            - "secretsmanager:PutSecretValue"
+            - "secretsmanager:UpdateSecretVersionStage"
 
 custom:
   file: ${file(./config/serverless.${self:provider.stage}.yml)}

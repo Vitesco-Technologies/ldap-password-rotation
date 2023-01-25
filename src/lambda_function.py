@@ -8,8 +8,13 @@ from ldap3 import Connection, Server, SUBTREE, extend
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Key name in secrets manager with the username used to bind to LDAP
 DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "username"
+# Key name in secrets manager with the password used to bind to LDAP
 DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
+# (optional) Key name in secrets manager with the user "distinguished name"
+# When provided, it will update the secrets manager with the current value in LDAP
+DICT_KEY_DN = os.environ.get("DICT_KEY_DN") or ""
 
 SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
 EXCLUDE_CHARACTERS_USER = os.environ.get("EXCLUDE_CHARACTERS_USER") or "$/'\"\\"
@@ -18,9 +23,10 @@ EXCLUDE_CHARACTERS_NEW_PW = os.environ.get("EXCLUDE_CHARACTERS_NEW_PW") or "@$/`
 
 LDAP_SERVER_LIST = (
     os.environ.get("LDAP_SERVER_LIST")
-    or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'  # noqa: E501
+    or '["ldaps://vt1dceuc1001.vt1.vitesco.com", "ldaps://vt1dceuc1002.vt1.vitesco.com"]'
 )
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
+LDAP_BASE_DN = os.environ.get("LDAP_BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
 BASE_DN = os.environ.get("BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
 
 LDAP_USE_SSL = True
@@ -32,7 +38,7 @@ def lambda_handler(event, context):
     """Secrets Manager Rotation LDAP # noqa: E501
     Rotates a password for a LDAP user account. This is the main lambda entry point.
     This rotation lambda expects the secret in the secrets manager to include at least the user and password.
-    In addition, the user has to be available in the format of userPrincipalName or distinguishedName.
+    You can also update your user "distinguished name" in secrets manager by providing it's key name.
     You can include additional fields, which will be kept unchanged after the password rotation.
     Args:
         event (dict): Lambda dictionary of event parameters. These keys must include the following:
@@ -160,6 +166,9 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
             ExcludeCharacters=EXCLUDE_CHARACTERS_NEW_PW
         )
         current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
+        if DICT_KEY_DN:
+            bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
+            current_dict[DICT_KEY_DN] = bind_user
 
         # Put the secret
         secrets_manager_client.put_secret_value(
@@ -209,7 +218,7 @@ def set_secret(current_dict, pending_dict):
         _, new_password = check_inputs(pending_dict)
         conn = ldap_connection(current_dict)
         conn.bind()
-        bind_user = get_user_dn(conn=conn, user=user, base_dn=BASE_DN)
+        bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
         if conn.result.get("result") == 0:
             ad_modify_password = extend.microsoft.modifyPassword.ad_modify_password(
                 conn, bind_user, new_password=new_password, old_password=old_password
@@ -423,7 +432,7 @@ def check_inputs(dict_arg):
     return username, password
 
 
-def get_user_dn(conn, user, base_dn=BASE_DN):
+def get_user_dn(conn, user, base_dn=LDAP_BASE_DN):
     """# noqa: E501
     Checks for the most precise bind user available
     Args:

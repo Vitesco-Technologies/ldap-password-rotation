@@ -43,7 +43,7 @@ def lambda_env():
     lambda_function.DICT_KEY_PASSWORD = "password"
     lambda_function.SECRETS_MANAGER_REGION = _region
     lambda_function.EXCLUDE_CHARACTERS = "/'\"\\"
-    lambda_function.BASE_DN = "dc=example,dc=com"
+    lambda_function.LDAP_BASE_DN = "dc=example,dc=com"
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -289,7 +289,7 @@ def test_get_user_dn(ldap_server, ldap_config):
     result = lambda_function.get_user_dn(
         conn=conn,
         user=ldap_config[lambda_function.DICT_KEY_USERNAME],
-        base_dn=lambda_function.BASE_DN,
+        base_dn=lambda_function.LDAP_BASE_DN,
     )
     assert result == "cn=admin,dc=example,dc=com"
 
@@ -300,7 +300,7 @@ def test_get_user_dn_wrong(ldap_server, ldap_config):
         lambda_function.get_user_dn(
             conn=conn,
             user="wrong",
-            base_dn=lambda_function.BASE_DN,
+            base_dn=lambda_function.LDAP_BASE_DN,
         )
     assert "user dn not found" in str(e.value).lower()
 
