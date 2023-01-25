@@ -46,8 +46,15 @@ provider:
       - ${self:custom.file.SUBNET2_ID}
   iam:
     role:
-      managedPolicies:
-        - "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+      statements:
+        - Effect: 'Allow'
+          Resource: '*'
+          Action:
+            - 'secretsmanager:DescribeSecret'
+            - 'secretsmanager:GetRandomPassword'
+            - 'secretsmanager:GetSecretValue'
+            - 'secretsmanager:PutSecretValue'
+            - 'secretsmanager:UpdateSecretVersionStage'
 
 custom:
   file: ${file(./config/serverless.${self:provider.stage}.yml)}
