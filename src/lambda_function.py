@@ -27,7 +27,9 @@ LDAP_SERVER_LIST = (
 )
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
 LDAP_BASE_DN = os.environ.get("LDAP_BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
-BASE_DN = os.environ.get("BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
+LDAP_USER_AUTH_ATTRIBUTE = (
+    os.environ.get("LDAP_USER_AUTH_ATTRIBUTE") or "userPrincipalName"
+)
 
 LDAP_USE_SSL = True
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
@@ -413,7 +415,7 @@ def check_inputs(dict_arg):
     Args:
         dict_arg(dictionary): Dictionary containing current credentials
     Returns:
-        username(string): Username from Directory Service (userPrincipalName)
+        username(string): Username from Directory Service
         password(string): Password of username from Directory Service
     Raises:
         Value Error: If username or password has characters from exclude list.
@@ -437,7 +439,7 @@ def get_user_dn(conn, user, base_dn=LDAP_BASE_DN):
     Checks for the most precise bind user available
     Args:
         conn(Connection): The Connection object is used to send operation requests to the LDAP Server.
-        username(string): Username from Directory Service (userPrincipalName)
+        username(string): Username from Directory Service
         base_dn(string): The base of the search request
     Returns:
         user_dn(string): User string to bind to the Directory Service
@@ -445,18 +447,20 @@ def get_user_dn(conn, user, base_dn=LDAP_BASE_DN):
         Value Error: If the user DN can't be found
     """
 
-    search_filter = "(&(userPrincipalName=" + user + "))"
+    search_filter = "(&(" + LDAP_USER_AUTH_ATTRIBUTE + "=" + user + "))"
     conn.search(
         search_base=base_dn,
         search_filter=search_filter,
         search_scope=SUBTREE,
-        attributes=["userPrincipalName"],
+        attributes=[LDAP_USER_AUTH_ATTRIBUTE],
     )
 
     user_dn = None
 
     for entry in conn.response:
-        if entry.get("dn") and user in entry.get("attributes").get("userPrincipalName"):
+        if entry.get("dn") and user in entry.get("attributes").get(
+            LDAP_USER_AUTH_ATTRIBUTE
+        ):
             user_dn = entry.get("dn")
 
     if user_dn:
