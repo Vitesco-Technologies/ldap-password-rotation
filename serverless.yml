@@ -39,6 +39,7 @@ provider:
     LDAP_SERVER_LIST: ${self:custom.file.LDAP_SERVER_LIST}
     LDAP_SERVER_PORT: ${self:custom.file.LDAP_SERVER_PORT}
     LDAP_BASE_DN: ${self:custom.file.LDAP_BASE_DN}
+    LDAP_USER_AUTH_ATTRIBUTE: ${self:custom.file.LDAP_USER_AUTH_ATTRIBUTE}
   vpc:
     securityGroupIds:
       - Ref: LambdaSecurityGroup
