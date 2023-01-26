@@ -181,10 +181,12 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
             conn.bind()
             bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
             current_dict[SECRETS_MANAGER_KEY_DN] = bind_user
-            logger.info(f"SECRETS_MANAGER_KEY_DN will be updated to: {bind_user}")
+            logger.info(
+                f"createSecret: SECRETS_MANAGER_KEY_DN will be updated to: {bind_user}"
+            )
         else:
             logger.info(
-                "SECRETS_MANAGER_KEY_DN will not be updated since it was not provided."
+                "createSecret: SECRETS_MANAGER_KEY_DN will not be updated since it was not provided."
             )
 
         current_dict[SECRETS_MANAGER_KEY_PASSWORD] = passwd["RandomPassword"]
