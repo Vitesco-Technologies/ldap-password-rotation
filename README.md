@@ -17,7 +17,7 @@ The AWS Lambda Function expects to receive a key/value (JSON) secret from AWS Se
 
 ## Quick Start
 
-You'll need to have [Python (>=3.7)](https://www.python.org/) with [pipenv](https://github.com/pypa/pipenv), [NodeJS](https://nodejs.org/) with [npm](https://www.npmjs.com/) installed, and [AWS CLI](https://aws.amazon.com/cli/).
+You'll need to have [Python (>=3.7)](https://www.python.org/) with [pipenv](https://github.com/pypa/pipenv), [NodeJS (>=16)](https://nodejs.org/) with [npm (>=8)](https://www.npmjs.com/) installed, and [AWS CLI](https://aws.amazon.com/cli/).
 
 Optional: [Make](https://www.gnu.org/software/make/)
 
