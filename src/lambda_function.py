@@ -40,7 +40,7 @@ def lambda_handler(event, context):
     """Secrets Manager Rotation LDAP # noqa: E501
     Rotates a password for a LDAP user account. This is the main lambda entry point.
     This rotation lambda expects the secret in the secrets manager to include at least the user and password.
-    You can also update your user "distinguished name" in secrets manager by providing it's key name.
+    You can also update your user "distinguished name" in the secrets manager by providing its key name.
     You can include additional fields, which will be kept unchanged after the password rotation.
     Args:
         event (dict): Lambda dictionary of event parameters. These keys must include the following:
@@ -143,7 +143,7 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
     try:
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         logger.info(f"createSecret: Successfully retrieved secret for {arn}.")
-        _, current_secret = check_inputs(current_dict)
+        user, current_secret = check_inputs(current_dict)
         _, pending_secret = check_inputs(pending_dict)
         if pending_secret == current_secret:
             logger.info(
@@ -167,10 +167,14 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
         passwd = secrets_manager_client.get_random_password(
             ExcludeCharacters=EXCLUDE_CHARACTERS_NEW_PW
         )
-        current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
+
         if DICT_KEY_DN:
+            conn = ldap_connection(current_dict)
+            conn.bind()
             bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
             current_dict[DICT_KEY_DN] = bind_user
+
+        current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
 
         # Put the secret
         secrets_manager_client.put_secret_value(

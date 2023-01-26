@@ -38,7 +38,7 @@ provider:
     EXCLUDE_CHARACTERS_NEW_PW: ${self:custom.file.EXCLUDE_CHARACTERS_NEW_PW}
     LDAP_SERVER_LIST: ${self:custom.file.LDAP_SERVER_LIST}
     LDAP_SERVER_PORT: ${self:custom.file.LDAP_SERVER_PORT}
-    BASE_DN: ${self:custom.file.BASE_DN}
+    LDAP_BASE_DN: ${self:custom.file.LDAP_BASE_DN}
   vpc:
     securityGroupIds:
       - Ref: LambdaSecurityGroup
