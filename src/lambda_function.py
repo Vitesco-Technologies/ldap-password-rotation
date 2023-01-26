@@ -9,12 +9,16 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Key name in secrets manager with the username used to bind to LDAP
-DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "username"
+SECRETS_MANAGER_KEY_USERNAME = (
+    os.environ.get("SECRETS_MANAGER_KEY_USERNAME") or "username"
+)
 # Key name in secrets manager with the password used to bind to LDAP
-DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
+SECRETS_MANAGER_KEY_PASSWORD = (
+    os.environ.get("SECRETS_MANAGER_KEY_PASSWORD") or "password"
+)
 # (optional) Key name in secrets manager with the user "distinguished name"
 # When provided, it will update the secrets manager with the current value in LDAP
-DICT_KEY_DN = os.environ.get("DICT_KEY_DN") or ""
+SECRETS_MANAGER_KEY_DN = os.environ.get("SECRETS_MANAGER_KEY_DN") or ""
 
 SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
 EXCLUDE_CHARACTERS_USER = os.environ.get("EXCLUDE_CHARACTERS_USER") or "$/'\"\\"
@@ -102,14 +106,17 @@ def lambda_handler(event, context):
     elif step == "setSecret":
         # Get the pending secret and update password in Directory Services
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
-        if current_dict[DICT_KEY_USERNAME] != pending_dict[DICT_KEY_USERNAME]:
+        if (
+            current_dict[SECRETS_MANAGER_KEY_USERNAME]
+            != pending_dict[SECRETS_MANAGER_KEY_USERNAME]
+        ):
             logger.error(
-                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict does "
-                f"not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+                f"Username {current_dict[SECRETS_MANAGER_KEY_USERNAME]} in current dict does "
+                f"not match username {pending_dict[SECRETS_MANAGER_KEY_USERNAME]} in pending dict"
             )
             raise ValueError(
-                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict does "
-                f"not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+                f"Username {current_dict[SECRETS_MANAGER_KEY_USERNAME]} in current dict does "
+                f"not match username {pending_dict[SECRETS_MANAGER_KEY_USERNAME]} in pending dict"
             )
         set_secret(current_dict, pending_dict)
 
@@ -168,13 +175,13 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
             ExcludeCharacters=EXCLUDE_CHARACTERS_NEW_PW
         )
 
-        if DICT_KEY_DN:
+        if SECRETS_MANAGER_KEY_DN:
             conn = ldap_connection(current_dict)
             conn.bind()
             bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
-            current_dict[DICT_KEY_DN] = bind_user
+            current_dict[SECRETS_MANAGER_KEY_DN] = bind_user
 
-        current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
+        current_dict[SECRETS_MANAGER_KEY_PASSWORD] = passwd["RandomPassword"]
 
         # Put the secret
         secrets_manager_client.put_secret_value(
@@ -248,7 +255,7 @@ def set_secret(current_dict, pending_dict):
     except Exception as e:
         logger.error(
             "setSecret: Unable to reset the users password in Directory "
-            f"Services user {pending_dict[DICT_KEY_USERNAME]}"
+            f"Services user {pending_dict[SECRETS_MANAGER_KEY_USERNAME]}"
         )
         logger.error(e)
         raise ValueError("Unable to reset the users password in Directory Services")
@@ -323,7 +330,7 @@ def get_secret_dict(secrets_manager_client, arn, stage, token=None):
         stage does not exist
         ValueError: If the secret is not valid JSON
     """
-    required_fields = [DICT_KEY_USERNAME, DICT_KEY_PASSWORD]
+    required_fields = [SECRETS_MANAGER_KEY_USERNAME, SECRETS_MANAGER_KEY_PASSWORD]
     # Only do VersionId validation against the stage if a token is passed in
     if token:
         secret = secrets_manager_client.get_secret_value(
@@ -424,8 +431,8 @@ def check_inputs(dict_arg):
     Raises:
         Value Error: If username or password has characters from exclude list.
     """
-    username = dict_arg[DICT_KEY_USERNAME]
-    password = dict_arg[DICT_KEY_PASSWORD]
+    username = dict_arg[SECRETS_MANAGER_KEY_USERNAME]
+    password = dict_arg[SECRETS_MANAGER_KEY_PASSWORD]
 
     username_check_list = [char in username for char in EXCLUDE_CHARACTERS_USER]
     if True in username_check_list:

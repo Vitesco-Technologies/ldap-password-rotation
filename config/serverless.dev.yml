@@ -1,9 +1,9 @@
 VPC_ID: vpc-027ff20d81be70a51 # vpc_id
 SUBNET1_ID: subnet-0a02aed08a726ab3b # the subnets of the vpc
 SUBNET2_ID: subnet-0c6d6d4a9baa1417e # the subnets of the vpc
-DICT_KEY_USERNAME: "username"
-DICT_KEY_PASSWORD: "password"
-DICT_KEY_DN: ""
+SECRETS_MANAGER_KEY_USERNAME: "username"
+SECRETS_MANAGER_KEY_PASSWORD: "password"
+SECRETS_MANAGER_KEY_DN: ""
 SECRETS_MANAGER_REGION: "eu-central-1"
 EXCLUDE_CHARACTERS_USER: "$/`'\"\\"
 EXCLUDE_CHARACTERS_PW: "/'\"\\"

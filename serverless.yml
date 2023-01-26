@@ -29,9 +29,9 @@ provider:
     SERVICE: ${self:service}
     STAGE: ${self:provider.stage}
     VPC_ID: ${self:custom.file.VPC_ID}
-    DICT_KEY_USERNAME: ${self:custom.file.DICT_KEY_USERNAME}
-    DICT_KEY_PASSWORD: ${self:custom.file.DICT_KEY_PASSWORD}
-    DICT_KEY_DN: ${self:custom.file.DICT_KEY_DN}
+    SECRETS_MANAGER_KEY_USERNAME: ${self:custom.file.SECRETS_MANAGER_KEY_USERNAME}
+    SECRETS_MANAGER_KEY_PASSWORD: ${self:custom.file.SECRETS_MANAGER_KEY_PASSWORD}
+    SECRETS_MANAGER_KEY_DN: ${self:custom.file.SECRETS_MANAGER_KEY_DN}
     SECRETS_MANAGER_REGION: ${self:custom.file.SECRETS_MANAGER_REGION}
     EXCLUDE_CHARACTERS_USER: ${self:custom.file.EXCLUDE_CHARACTERS_USER}
     EXCLUDE_CHARACTERS_PW: ${self:custom.file.EXCLUDE_CHARACTERS_PW}
