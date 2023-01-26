@@ -44,6 +44,8 @@ def lambda_env():
     lambda_function.SECRETS_MANAGER_REGION = _region
     lambda_function.EXCLUDE_CHARACTERS = "/'\"\\"
     lambda_function.LDAP_BASE_DN = "dc=example,dc=com"
+    lambda_function.LDAP_USER_AUTH_ATTRIBUTE = "userPrincipalName"
+    lambda_function.DICT_KEY_DN = "ldap_bind_dn"
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -79,7 +81,7 @@ def ldap_server(config=None):
                 },
                 {
                     "objectclass": "user",
-                    "dn": "cn=admin,dc=example,dc=com",
+                    "dn": "cn=users,dc=example,dc=com",
                     "attributes": {
                         "o": "foocompany",
                         "userPrincipalName": "cn=admin,dc=example,dc=com",
@@ -137,6 +139,7 @@ def mock_secrets(secretsmanager, ldap_config):
         lambda_function.DICT_KEY_PASSWORD: ldap_config[
             lambda_function.DICT_KEY_PASSWORD
         ],
+        lambda_function.DICT_KEY_DN: "cn=outdated,dc=example,dc=com",
     }
     secret_dict_wrong_pw = {
         lambda_function.DICT_KEY_USERNAME: ldap_config[
@@ -220,7 +223,7 @@ def test_ldap_config(ldap_config):
             },
             {
                 "objectclass": "user",
-                "dn": "cn=admin,dc=example,dc=com",
+                "dn": "cn=users,dc=example,dc=com",
                 "attributes": {
                     "o": "foocompany",
                     "userPrincipalName": "cn=admin,dc=example,dc=com",
@@ -291,7 +294,7 @@ def test_get_user_dn(ldap_server, ldap_config):
         user=ldap_config[lambda_function.DICT_KEY_USERNAME],
         base_dn=lambda_function.LDAP_BASE_DN,
     )
-    assert result == "cn=admin,dc=example,dc=com"
+    assert result == "cn=users,dc=example,dc=com"
 
 
 def test_get_user_dn_wrong(ldap_server, ldap_config):
@@ -494,8 +497,16 @@ def test_lambda_full_rotation(secretsmanager, get_event, lambda_func, ldap_serve
         ]
     )
 
-    assert new_secret_pending["password"] is not old_secret_pending["password"]
-    assert new_secret_pending["password"] is not secret_current["password"]
+    assert new_secret_pending["password"] != old_secret_pending["password"]
+    assert new_secret_pending["password"] != secret_current["password"]
+    assert (
+        new_secret_pending[lambda_function.DICT_KEY_DN]
+        is not secret_current[lambda_function.DICT_KEY_DN]
+    )
+    assert (
+        new_secret_pending[lambda_function.DICT_KEY_DN]
+        is not secret_current[lambda_function.DICT_KEY_DN]
+    )
 
     with mock.patch(
         "ldap3.extend.microsoft.modifyPassword.ad_modify_password",
@@ -523,7 +534,92 @@ def test_lambda_full_rotation(secretsmanager, get_event, lambda_func, ldap_serve
             "SecretString"
         ]
     )
-    assert new_config_pw == new_secret_current["password"]
+    assert new_secret_current["password"] == new_config_pw
+    assert (
+        new_secret_current[lambda_function.DICT_KEY_DN] == "cn=users,dc=example,dc=com"
+    )
+
+
+@pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
+def test_lambda_rotation_no_dn(secretsmanager, get_event, lambda_func, ldap_server):
+    _DICT_KEY_DN = lambda_function.DICT_KEY_DN
+    lambda_function.DICT_KEY_DN = ""
+
+    create_secret = get_event.copy()
+    set_secret = get_event.copy()
+    test_secret = get_event.copy()
+    finish_secret = get_event.copy()
+    set_secret["Step"] = "setSecret"
+    test_secret["Step"] = "testSecret"
+    finish_secret["Step"] = "finishSecret"
+
+    client_request_token = get_event["ClientRequestToken"]
+    secret_id = get_event["SecretId"]
+
+    # Create secret tests
+    secretsmanager.rotate_secret(
+        SecretId=secret_id,
+        ClientRequestToken=client_request_token,
+        RotationLambdaARN=lambda_func["FunctionArn"],
+        RotationRules=dict(AutomaticallyAfterDays=60, Duration="1h"),
+        RotateImmediately=False,
+    )
+
+    try:
+        old_secret_pending = json.loads(
+            secretsmanager.get_secret_value(
+                SecretId=secret_id, VersionStage="AWSPENDING"
+            )["SecretString"]
+        )
+    except Exception:
+        old_secret_pending = {"password": ""}
+
+    lambda_function.lambda_handler(create_secret, {})
+
+    secret_current = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSCURRENT")[
+            "SecretString"
+        ]
+    )
+    new_secret_pending = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSPENDING")[
+            "SecretString"
+        ]
+    )
+
+    assert new_secret_pending["password"] != old_secret_pending["password"]
+    assert new_secret_pending["password"] != secret_current["password"]
+    assert new_secret_pending[_DICT_KEY_DN] == old_secret_pending[_DICT_KEY_DN]
+    assert new_secret_pending[_DICT_KEY_DN] == secret_current[_DICT_KEY_DN]
+
+    with mock.patch(
+        "ldap3.extend.microsoft.modifyPassword.ad_modify_password",
+        side_effect=mock_ad_modify_password,
+    ):
+        # Set secret tests
+        old_config_pw = ldap_server.config["password"]
+
+        lambda_function.lambda_handler(set_secret, {})
+
+        new_config_pw = ldap_server.config["password"]
+
+        assert old_config_pw != new_config_pw
+        assert new_config_pw == new_secret_pending["password"]
+
+    try:
+        lambda_function.lambda_handler(test_secret, {})
+    except Exception:
+        pytest.fail("Unexpected Error Testing the new secret")
+
+    lambda_function.lambda_handler(finish_secret, {})
+
+    new_secret_current = json.loads(
+        secretsmanager.get_secret_value(SecretId=secret_id, VersionStage="AWSCURRENT")[
+            "SecretString"
+        ]
+    )
+    assert new_secret_current["password"] == new_config_pw
+    assert new_secret_current[_DICT_KEY_DN] == "cn=outdated,dc=example,dc=com"
 
 
 @pytest.mark.parametrize("get_event", ["createSecret"], indirect=True)
