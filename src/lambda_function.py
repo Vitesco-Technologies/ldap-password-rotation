@@ -150,7 +150,7 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
     try:
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         logger.info(f"createSecret: Successfully retrieved secret for {arn}.")
-        user, current_secret = check_inputs(current_dict)
+        _, current_secret = check_inputs(current_dict)
         _, pending_secret = check_inputs(pending_dict)
         if pending_secret == current_secret:
             logger.info(
@@ -176,10 +176,18 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
         )
 
         if SECRETS_MANAGER_KEY_DN:
+            user, _ = check_inputs(current_dict)
             conn = ldap_connection(current_dict)
             conn.bind()
             bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
             current_dict[SECRETS_MANAGER_KEY_DN] = bind_user
+            logger.info(
+                f"createSecret: SECRETS_MANAGER_KEY_DN will be updated to: {bind_user}"
+            )
+        else:
+            logger.info(
+                "createSecret: SECRETS_MANAGER_KEY_DN will not be updated since it was not provided."
+            )
 
         current_dict[SECRETS_MANAGER_KEY_PASSWORD] = passwd["RandomPassword"]
 
