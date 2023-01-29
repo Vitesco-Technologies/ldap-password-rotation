@@ -8,8 +8,17 @@ from ldap3 import Connection, Server, SUBTREE, extend
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DICT_KEY_USERNAME = os.environ.get("DICT_KEY_USERNAME") or "username"
-DICT_KEY_PASSWORD = os.environ.get("DICT_KEY_PASSWORD") or "password"
+# Key name in secrets manager with the username used to bind to LDAP
+SECRETS_MANAGER_KEY_USERNAME = (
+    os.environ.get("SECRETS_MANAGER_KEY_USERNAME") or "username"
+)
+# Key name in secrets manager with the password used to bind to LDAP
+SECRETS_MANAGER_KEY_PASSWORD = (
+    os.environ.get("SECRETS_MANAGER_KEY_PASSWORD") or "password"
+)
+# (optional) Key name in secrets manager with the user "distinguished name"
+# When provided, it will update the secrets manager with the current value in LDAP
+SECRETS_MANAGER_KEY_DN = os.environ.get("SECRETS_MANAGER_KEY_DN") or ""
 
 SECRETS_MANAGER_REGION = os.environ.get("SECRETS_MANAGER_REGION") or "eu-central-1"
 EXCLUDE_CHARACTERS_USER = os.environ.get("EXCLUDE_CHARACTERS_USER") or "$/'\"\\"
@@ -18,10 +27,13 @@ EXCLUDE_CHARACTERS_NEW_PW = os.environ.get("EXCLUDE_CHARACTERS_NEW_PW") or "@$/`
 
 LDAP_SERVER_LIST = (
     os.environ.get("LDAP_SERVER_LIST")
-    or '["ldaps://vt1dcsrv1001.vt1.example.com", "ldaps://vt1dcsrv1002.vt1.example.com"]'  # noqa: E501
+    or '["ldaps://vt1dcsrv1001.vt1.example.com", "ldaps://vt1dcsrv1002.vt1.example.com"]'
 )
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
-BASE_DN = os.environ.get("BASE_DN") or "dc=vt1,dc=example,dc=com"
+LDAP_BASE_DN = os.environ.get("LDAP_BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
+LDAP_USER_AUTH_ATTRIBUTE = (
+    os.environ.get("LDAP_USER_AUTH_ATTRIBUTE") or "userPrincipalName"
+)
 
 LDAP_USE_SSL = True
 LDAP_BIND_CURRENT_CREDS_SUCCESSFUL = "LDAP_BIND_USING_CURRENT_CREDS_SUCCESSFUL"
@@ -32,7 +44,7 @@ def lambda_handler(event, context):
     """Secrets Manager Rotation LDAP # noqa: E501
     Rotates a password for a LDAP user account. This is the main lambda entry point.
     This rotation lambda expects the secret in the secrets manager to include at least the user and password.
-    In addition, the user has to be available in the format of userPrincipalName or distinguishedName.
+    You can also update your user "distinguished name" in the secrets manager by providing its key name.
     You can include additional fields, which will be kept unchanged after the password rotation.
     Args:
         event (dict): Lambda dictionary of event parameters. These keys must include the following:
@@ -94,14 +106,17 @@ def lambda_handler(event, context):
     elif step == "setSecret":
         # Get the pending secret and update password in Directory Services
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
-        if current_dict[DICT_KEY_USERNAME] != pending_dict[DICT_KEY_USERNAME]:
+        if (
+            current_dict[SECRETS_MANAGER_KEY_USERNAME]
+            != pending_dict[SECRETS_MANAGER_KEY_USERNAME]
+        ):
             logger.error(
-                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict does "
-                f"not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+                f"Username {current_dict[SECRETS_MANAGER_KEY_USERNAME]} in current dict does "
+                f"not match username {pending_dict[SECRETS_MANAGER_KEY_USERNAME]} in pending dict"
             )
             raise ValueError(
-                f"Username {current_dict[DICT_KEY_USERNAME]} in current dict does "
-                f"not match username {pending_dict[DICT_KEY_USERNAME]} in pending dict"
+                f"Username {current_dict[SECRETS_MANAGER_KEY_USERNAME]} in current dict does "
+                f"not match username {pending_dict[SECRETS_MANAGER_KEY_USERNAME]} in pending dict"
             )
         set_secret(current_dict, pending_dict)
 
@@ -135,7 +150,7 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
     try:
         pending_dict = get_secret_dict(secrets_manager_client, arn, "AWSPENDING", token)
         logger.info(f"createSecret: Successfully retrieved secret for {arn}.")
-        _, current_secret = check_inputs(current_dict)
+        user, current_secret = check_inputs(current_dict)
         _, pending_secret = check_inputs(pending_dict)
         if pending_secret == current_secret:
             logger.info(
@@ -159,7 +174,14 @@ def create_secret(secrets_manager_client, arn, token, current_dict):
         passwd = secrets_manager_client.get_random_password(
             ExcludeCharacters=EXCLUDE_CHARACTERS_NEW_PW
         )
-        current_dict[DICT_KEY_PASSWORD] = passwd["RandomPassword"]
+
+        if SECRETS_MANAGER_KEY_DN:
+            conn = ldap_connection(current_dict)
+            conn.bind()
+            bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
+            current_dict[SECRETS_MANAGER_KEY_DN] = bind_user
+
+        current_dict[SECRETS_MANAGER_KEY_PASSWORD] = passwd["RandomPassword"]
 
         # Put the secret
         secrets_manager_client.put_secret_value(
@@ -209,7 +231,7 @@ def set_secret(current_dict, pending_dict):
         _, new_password = check_inputs(pending_dict)
         conn = ldap_connection(current_dict)
         conn.bind()
-        bind_user = get_user_dn(conn=conn, user=user, base_dn=BASE_DN)
+        bind_user = get_user_dn(conn=conn, user=user, base_dn=LDAP_BASE_DN)
         if conn.result.get("result") == 0:
             ad_modify_password = extend.microsoft.modifyPassword.ad_modify_password(
                 conn, bind_user, new_password=new_password, old_password=old_password
@@ -233,7 +255,7 @@ def set_secret(current_dict, pending_dict):
     except Exception as e:
         logger.error(
             "setSecret: Unable to reset the users password in Directory "
-            f"Services user {pending_dict[DICT_KEY_USERNAME]}"
+            f"Services user {pending_dict[SECRETS_MANAGER_KEY_USERNAME]}"
         )
         logger.error(e)
         raise ValueError("Unable to reset the users password in Directory Services")
@@ -308,7 +330,7 @@ def get_secret_dict(secrets_manager_client, arn, stage, token=None):
         stage does not exist
         ValueError: If the secret is not valid JSON
     """
-    required_fields = [DICT_KEY_USERNAME, DICT_KEY_PASSWORD]
+    required_fields = [SECRETS_MANAGER_KEY_USERNAME, SECRETS_MANAGER_KEY_PASSWORD]
     # Only do VersionId validation against the stage if a token is passed in
     if token:
         secret = secrets_manager_client.get_secret_value(
@@ -404,13 +426,13 @@ def check_inputs(dict_arg):
     Args:
         dict_arg(dictionary): Dictionary containing current credentials
     Returns:
-        username(string): Username from Directory Service (userPrincipalName)
+        username(string): Username from Directory Service
         password(string): Password of username from Directory Service
     Raises:
         Value Error: If username or password has characters from exclude list.
     """
-    username = dict_arg[DICT_KEY_USERNAME]
-    password = dict_arg[DICT_KEY_PASSWORD]
+    username = dict_arg[SECRETS_MANAGER_KEY_USERNAME]
+    password = dict_arg[SECRETS_MANAGER_KEY_PASSWORD]
 
     username_check_list = [char in username for char in EXCLUDE_CHARACTERS_USER]
     if True in username_check_list:
@@ -423,12 +445,12 @@ def check_inputs(dict_arg):
     return username, password
 
 
-def get_user_dn(conn, user, base_dn=BASE_DN):
+def get_user_dn(conn, user, base_dn=LDAP_BASE_DN):
     """# noqa: E501
     Checks for the most precise bind user available
     Args:
         conn(Connection): The Connection object is used to send operation requests to the LDAP Server.
-        username(string): Username from Directory Service (userPrincipalName)
+        username(string): Username from Directory Service
         base_dn(string): The base of the search request
     Returns:
         user_dn(string): User string to bind to the Directory Service
@@ -436,18 +458,20 @@ def get_user_dn(conn, user, base_dn=BASE_DN):
         Value Error: If the user DN can't be found
     """
 
-    search_filter = "(&(userPrincipalName=" + user + "))"
+    search_filter = "(&(" + LDAP_USER_AUTH_ATTRIBUTE + "=" + user + "))"
     conn.search(
         search_base=base_dn,
         search_filter=search_filter,
         search_scope=SUBTREE,
-        attributes=["userPrincipalName"],
+        attributes=[LDAP_USER_AUTH_ATTRIBUTE],
     )
 
     user_dn = None
 
     for entry in conn.response:
-        if entry.get("dn") and user in entry.get("attributes").get("userPrincipalName"):
+        if entry.get("dn") and user in entry.get("attributes").get(
+            LDAP_USER_AUTH_ATTRIBUTE
+        ):
             user_dn = entry.get("dn")
 
     if user_dn:
