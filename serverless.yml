@@ -29,15 +29,17 @@ provider:
     SERVICE: ${self:service}
     STAGE: ${self:provider.stage}
     VPC_ID: ${self:custom.file.VPC_ID}
-    DICT_KEY_USERNAME: ${self:custom.file.DICT_KEY_USERNAME}
-    DICT_KEY_PASSWORD: ${self:custom.file.DICT_KEY_PASSWORD}
+    SECRETS_MANAGER_KEY_USERNAME: ${self:custom.file.SECRETS_MANAGER_KEY_USERNAME}
+    SECRETS_MANAGER_KEY_PASSWORD: ${self:custom.file.SECRETS_MANAGER_KEY_PASSWORD}
+    SECRETS_MANAGER_KEY_DN: ${self:custom.file.SECRETS_MANAGER_KEY_DN}
     SECRETS_MANAGER_REGION: ${self:custom.file.SECRETS_MANAGER_REGION}
     EXCLUDE_CHARACTERS_USER: ${self:custom.file.EXCLUDE_CHARACTERS_USER}
     EXCLUDE_CHARACTERS_PW: ${self:custom.file.EXCLUDE_CHARACTERS_PW}
     EXCLUDE_CHARACTERS_NEW_PW: ${self:custom.file.EXCLUDE_CHARACTERS_NEW_PW}
     LDAP_SERVER_LIST: ${self:custom.file.LDAP_SERVER_LIST}
     LDAP_SERVER_PORT: ${self:custom.file.LDAP_SERVER_PORT}
-    BASE_DN: ${self:custom.file.BASE_DN}
+    LDAP_BASE_DN: ${self:custom.file.LDAP_BASE_DN}
+    LDAP_USER_AUTH_ATTRIBUTE: ${self:custom.file.LDAP_USER_AUTH_ATTRIBUTE}
   vpc:
     securityGroupIds:
       - Ref: LambdaSecurityGroup
@@ -46,8 +48,15 @@ provider:
       - ${self:custom.file.SUBNET2_ID}
   iam:
     role:
-      managedPolicies:
-        - "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+      statements:
+        - Effect: "Allow"
+          Resource: "*"
+          Action:
+            - "secretsmanager:DescribeSecret"
+            - "secretsmanager:GetRandomPassword"
+            - "secretsmanager:GetSecretValue"
+            - "secretsmanager:PutSecretValue"
+            - "secretsmanager:UpdateSecretVersionStage"
 
 custom:
   file: ${file(./config/serverless.${self:provider.stage}.yml)}
@@ -83,13 +92,6 @@ resources:
         SecurityGroupEgress:
           - IpProtocol: -1
             CidrIp: 0.0.0.0/0
-        SecurityGroupIngress:
-          - IpProtocol: -1
-            CidrIp: 10.0.0.0/8
-          - IpProtocol: -1
-            CidrIp: 172.16.0.0/12
-          - IpProtocol: -1
-            CidrIp: 192.168.0.0/16
         VpcId: ${self:custom.file.VPC_ID}
     SecretsManagerInvokePermission:
       Type: AWS::Lambda::Permission
