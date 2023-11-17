@@ -30,10 +30,10 @@ EXCLUDE_CHARACTERS_NEW_PW = os.environ.get("EXCLUDE_CHARACTERS_NEW_PW") or "@$/`
 
 LDAP_SERVER_LIST = (
     os.environ.get("LDAP_SERVER_LIST")
-    or '["ldaps://vt1dcsrv1001.vt1.example.com", "ldaps://vt1dcsrv1002.vt1.example.com"]'
+    or '["ldaps://ex1dcsrv1001.ex1.example.com", "ldaps://ex1dcsrv1002.ex1.example.com"]'
 )
 LDAP_SERVER_PORT = os.environ.get("LDAP_SERVER_PORT") or "636"
-LDAP_BASE_DN = os.environ.get("LDAP_BASE_DN") or "dc=vt1,dc=vitesco,dc=com"
+LDAP_BASE_DN = os.environ.get("LDAP_BASE_DN") or "dc=ex1,dc=example,dc=com"
 LDAP_USER_AUTH_ATTRIBUTE = (
     os.environ.get("LDAP_USER_AUTH_ATTRIBUTE") or "userPrincipalName"
 )
