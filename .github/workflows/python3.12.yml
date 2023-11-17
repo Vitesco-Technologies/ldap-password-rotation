@@ -1,4 +1,4 @@
-name: python3.7
+name: python3.12
 
 on:
   push:
@@ -12,4 +12,4 @@ jobs:
     uses: ./.github/workflows/pytest.yml
     with:
       os: "ubuntu-latest"
-      python-version: "3.7"
+      python-version: "3.12"

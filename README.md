@@ -7,13 +7,11 @@
 
 ![Python <=3.6](https://img.shields.io/badge/python-<=3.6-red.svg)
 
-[![Python 3.7](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.7.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.7.yml)
 [![Python 3.8](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.8.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.8.yml)
 [![Python 3.9](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.9.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.9.yml)
 [![Python 3.10](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.10.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.10.yml)
 [![Python 3.11](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.11.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.11.yml)
-
-![Python >=3.12](https://img.shields.io/badge/python->=3.12-greenyellow.svg)
+[![Python 3.12](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.12.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.12.yml)
 
 The LDAP Password Rotation Service offers a lambda function that integrates with AWS Secrets Manager and can update the user password to a new random password and update it in AWS Secrets Manager.
 
@@ -21,7 +19,7 @@ The AWS Lambda Function expects to receive a key/value (JSON) secret from AWS Se
 
 ## Quick Start
 
-You'll need to have [Python (>=3.7)](https://www.python.org/) with [pipenv](https://github.com/pypa/pipenv), [NodeJS (>=16)](https://nodejs.org/) with [npm (>=8)](https://www.npmjs.com/) installed, and [AWS CLI](https://aws.amazon.com/cli/).
+You'll need to have [Python (>=3.8)](https://www.python.org/) with [pipenv](https://github.com/pypa/pipenv), [NodeJS (>=16)](https://nodejs.org/) with [npm (>=8)](https://www.npmjs.com/) installed, and [AWS CLI](https://aws.amazon.com/cli/).
 
 Optional: [Make](https://www.gnu.org/software/make/)
 
