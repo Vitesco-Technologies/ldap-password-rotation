@@ -1,3 +1,6 @@
+# Copyright 2023 Daniel Dias, Vitesco Technologies
+#
+# SPDX-License-Identifier: Apache-2.0
 import json
 import logging
 import os
