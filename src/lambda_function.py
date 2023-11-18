@@ -75,7 +75,7 @@ def lambda_handler(event, context):
 
     # Make sure the version is staged correctly
     metadata = secrets_manager_client.describe_secret(SecretId=arn)
-    if not metadata["RotationEnabled"]:
+    if not metadata.get("RotationEnabled"):
         logger.error(f"Secret {arn} is not enabled for rotation")
         raise ValueError(f"Secret {arn} is not enabled for rotation")
     versions = metadata["VersionIdsToStages"]
