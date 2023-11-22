@@ -27,7 +27,7 @@ setup: ## Set up dependencies
 deploy: ## Deploy with serverless framework
 	@[ "${stage}" ] || ( echo ">> stage is not set call with make deploy stage=<app stage>"; exit 1 )
 	rm -rf layer/python/
-	pipenv run pip install -r <(pipenv requirements) --target layer/python
+	pipenv run pip install -r requirements.txt --target layer/python
 	pipenv run npx sls deploy --stage=${stage} --verbose
 
 .PHONY: undeploy
