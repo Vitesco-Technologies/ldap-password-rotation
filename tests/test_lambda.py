@@ -10,8 +10,9 @@ import boto3
 import ldap3
 import mock
 import pytest
-from moto import mock_lambda, mock_secretsmanager
+from moto import mock_aws
 from src import lambda_function
+
 
 from .utilities import lambda_util
 from .utilities.ldap_test import LdapServer
@@ -107,13 +108,13 @@ def ldap_config(ldap_server, lambda_env):
 
 @pytest.fixture(scope="function")
 def secretsmanager(aws_credentials):
-    with mock_secretsmanager():
+    with mock_aws():
         yield boto3.client("secretsmanager", region_name=_region)
 
 
 @pytest.fixture(scope="function")
 def lambda_conn(aws_credentials):
-    with mock_lambda():
+    with mock_aws():
         yield boto3.client("lambda", region_name=_region)
 
 

@@ -6,13 +6,13 @@ import zipfile
 
 import boto3
 from botocore.exceptions import ClientError
-from moto import mock_iam
+from moto import mock_aws
 
 _lambda_region = "eu-central-1"
 
 
 def get_role_name():
-    with mock_iam():
+    with mock_aws():
         iam = boto3.client("iam", region_name=_lambda_region)
         while True:
             try:
