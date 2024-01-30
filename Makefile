@@ -1,4 +1,4 @@
-# Copyright 2023 Daniel Dias, Vitesco Technologies
+# Copyright 2024 Daniel Dias, Vitesco Technologies
 #
 # SPDX-License-Identifier: Apache-2.0
 SHELL := /bin/bash
