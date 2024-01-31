@@ -68,8 +68,9 @@ In case you don't have [Make](https://www.gnu.org/software/make/) you can still 
 
 ### How to setup and test
 
-1. Run `make setup` to build and setup your local environment
-2. Run `make test` to test or `make test-log` to test and print the execution logs.
+1. Run `make setup` to build and setup your local environment.
+2. Run `make requirements` to generate requirements.txt and requirements-dev.txt files.
+3. Run `make test` to test or `make test-log` to test and print the execution logs.
 
 ### How to Deploy
 
