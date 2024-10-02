@@ -11,7 +11,7 @@ coverage-badge==1.1.1
 cryptography==43.0.1; python_version >= '3.7'
 docker==7.0.0; python_version >= '3.8'
 exceptiongroup==1.2.1; python_version < '3.11'
-idna==3.7; python_version >= '3.5'
+idna==3.10; python_version >= '3.5'
 iniconfig==2.0.0; python_version >= '3.7'
 jinja2==3.1.4; python_version >= '3.7'
 jmespath==1.0.1; python_version >= '3.7'
