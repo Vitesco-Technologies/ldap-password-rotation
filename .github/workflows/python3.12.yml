@@ -1,4 +1,4 @@
-name: Linux
+name: python3.12
 
 on:
   push:
