@@ -1,17 +1,17 @@
 # LdapPasswordRotationService
 
 ![coverage](docs/img/coverage.svg)
-[![Linux](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/linux.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/linux.yml)
-[![macOs](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/macos.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/macos.yml)
-[![Windows](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/windows.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/windows.yml)
+[![Linux](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/linux.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/linux.yml)
+[![macOs](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/macos.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/macos.yml)
+[![Windows](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/windows.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/windows.yml)
 
 ![Python <=3.7](https://img.shields.io/badge/python-<=3.7-red.svg)
 
-[![Python 3.8](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.8.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.8.yml)
-[![Python 3.9](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.9.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.9.yml)
-[![Python 3.10](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.10.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.10.yml)
-[![Python 3.11](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.11.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.11.yml)
-[![Python 3.12](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.12.yml/badge.svg)](https://github.com/DanielRDias/ldap-password-rotation/actions/workflows/python3.12.yml)
+[![Python 3.8](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.8.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.8.yml)
+[![Python 3.9](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.9.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.9.yml)
+[![Python 3.10](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.10.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.10.yml)
+[![Python 3.11](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.11.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.11.yml)
+[![Python 3.12](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.12.yml/badge.svg)](https://github.com/Vitesco-Technologies/ldap-password-rotation/actions/workflows/python3.12.yml)
 
 ![Python >=3.13](https://img.shields.io/badge/python->=3.13-yellow.svg)
 
