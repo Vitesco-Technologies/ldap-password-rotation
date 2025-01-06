@@ -18,10 +18,20 @@ help:  ## Show available commands
 
 .PHONY: setup
 setup: ## Set up dependencies
-	echo python version: $$(which python3.12) 
+	echo python version: $$(which python3.13) 
 	@(PIPENV_VERBOSITY=-1 pipenv --venv && PIPENV_VERBOSITY=-1 PIPENV_VENV_IN_PROJECT=1 pipenv --rm) || true >/dev/null
-	CFLAGS=$(CFLAGS) LC_ALL=$(LC_ALL) LANG=$(LANG) PIPENV_VENV_IN_PROJECT=1 pipenv sync --dev --python=$$(which python3.12)
+	CFLAGS=$(CFLAGS) LC_ALL=$(LC_ALL) LANG=$(LANG) PIPENV_VENV_IN_PROJECT=1 pipenv sync --dev --python=$$(which python3.13)
 	npm install
+
+.PHONY: update
+update: ## Update dependencies
+	echo python version: $$(which python3.13) 
+	@(PIPENV_VERBOSITY=-1 pipenv --venv && PIPENV_VERBOSITY=-1 PIPENV_VENV_IN_PROJECT=1 pipenv --rm) || true >/dev/null
+	CFLAGS=$(CFLAGS) LC_ALL=$(LC_ALL) LANG=$(LANG) PIPENV_VENV_IN_PROJECT=1 pipenv sync --dev --python=$$(which python3.13)
+	npm install
+	pipenv update
+	pipenv requirements > requirements.txt
+	pipenv requirements --dev > requirements-dev.txt
 
 .PHONY: deploy
 deploy: ## Deploy with serverless framework
