@@ -20,7 +20,7 @@ package:
 
 provider:
   name: aws
-  runtime: python3.12
+  runtime: python3.13
   timeout: 30
   logRetentionInDays: 14
   stage: ${opt:stage, 'dev'}
@@ -81,6 +81,7 @@ layers:
       - python3.10
       - python3.11
       - python3.12
+      - python3.13
     compatibleArchitectures:
       - x86_64
       - arm64

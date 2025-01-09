@@ -10,7 +10,7 @@ on:
         type: string
       python-version:
         description: "Python version passed from the caller workflow"
-        default: "3.12"
+        default: "3.13"
         required: false
         type: string
 
