@@ -9,14 +9,20 @@ package:
   individually: true
   patterns:
     - "!.venv/**"
+    - "!.github/**"
+    - "!.pytest_cache/**"
+    - "!.coverage"
+    - "!.coveragerc"
     - "!node_modules/**"
     - "!config/**"
     - "!requirements.txt"
+    - "!requirements-dev.txt"
     - "!package.json"
     - "!package-lock.json"
     - "!Makefile"
     - "!Pipfile"
     - "!Pipfile.lock"
+    - "!tests/**"
 
 provider:
   name: aws
