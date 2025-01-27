@@ -607,11 +607,11 @@
         },
         "py4j": {
             "hashes": [
-                "sha256:7afa80dbe405985118119ec47dd5da95db2a7d6e367fbf5dee5bd949832d0b75",
-                "sha256:84226a9d382448c36af1ca4bc2ab7ab9df49ec54fc83f033f620e00c8a6da0ca"
+                "sha256:c7c26e4158defb37b0bb124933163641a2ff6e3a3913f7811b0ddbe07ed61533",
+                "sha256:f694cad19efa5bd1dee4f3e5270eb406613c974394035e5bfc4ec1aba870b879"
             ],
             "index": "pypi",
-            "version": "==0.10.9.8"
+            "version": "==0.10.9.9"
         },
         "pycparser": {
             "hashes": [
