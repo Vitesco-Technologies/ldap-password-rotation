@@ -20,7 +20,7 @@ moto==5.1.4; python_version >= '3.8'
 mypy-extensions==1.0.0; python_version >= '3.5'
 packaging==24.2; python_version >= '3.8'
 pathspec==0.12.1; python_version >= '3.8'
-platformdirs==4.3.6; python_version >= '3.8'
+platformdirs==4.3.7; python_version >= '3.8'
 pluggy==1.5.0; python_version >= '3.8'
 py4j==0.10.9.9
 pycparser==2.22; python_version >= '3.8'
