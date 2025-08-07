@@ -4,7 +4,7 @@
     "description": "The LDAP Password Rotation Service offers a lambda function that integrates with AWS Secrets Manager and can update the user password to a new random password and update it in AWS Secrets Manager.",
     "author": "daniel.dias@vitesco.com",
     "devDependencies": {
-        "serverless": "^3.37.0",
+        "serverless": "^4.18.0",
         "serverless-prune-plugin": "^2.0.2"
     }
 }
