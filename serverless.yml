@@ -18,10 +18,11 @@ package:
     - "!requirements.txt"
     - "!requirements-dev.txt"
     - "!package.json"
+    - "!bun.lock"
     - "!package-lock.json"
     - "!Makefile"
-    - "!Pipfile"
-    - "!Pipfile.lock"
+    - "!pyproject.toml"
+    - "!uv.lock"
     - "!tests/**"
 
 provider:
