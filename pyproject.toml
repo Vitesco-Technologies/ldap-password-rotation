@@ -1,0 +1,26 @@
+[project]
+name = "ldap-password-rotation-service"
+version = "1.0.0"
+description = "The LDAP Password Rotation Service offers a lambda function that integrates with AWS Secrets Manager and can update the user password to a new random password and update it in AWS Secrets Manager."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "boto3",
+    "ldap3",
+]
+
+[dependency-groups]
+dev = [
+    "black",
+    "coverage-badge",
+    "docker",
+    "mock",
+    "moto",
+    "py4j",
+    "pytest",
+    "pytest-cov",
+    "uuid",
+]
+
+[tool.uv]
+package = false

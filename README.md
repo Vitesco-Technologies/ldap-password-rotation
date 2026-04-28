@@ -21,18 +21,19 @@ The AWS Lambda Function expects to receive a key/value (JSON) secret from AWS Se
 
 ## Quick Start
 
-You'll need to have [Python (>=3.9)](https://www.python.org/) with [pipenv](https://github.com/pypa/pipenv), [NodeJS (>=16)](https://nodejs.org/) with [npm (>=8)](https://www.npmjs.com/) installed, and [AWS CLI](https://aws.amazon.com/cli/).
+You'll need to have [Python (>=3.9)](https://www.python.org/) with [uv](https://docs.astral.sh/uv/), [Bun](https://bun.sh/) installed, and [AWS CLI](https://aws.amazon.com/cli/).
 
 Optional: [Make](https://www.gnu.org/software/make/)
 
 1. Make sure your default AWS credentials are configured to the environment where you want to deploy this project
-2. Update the config file for the environment (located in the config folder) you want to deploy
+1. Update the config file for the environment (located in the config folder) you want to deploy
    1. `config/serverless.dev.yml` for the development environment
-3. Setup the project
+1. Setup the project
    1. `make setup`
-4. Deploy the project
+   1. This creates the local Python environment with uv and installs the Serverless Framework dependencies with Bun.
+1. Deploy the project
    1. Run `make deploy stage=dev` to deploy with the `config/serverless.dev.yml` configurations
-5. Create AWS Secrets Manager secret
+1. Create AWS Secrets Manager secret
 
 ```bash
 aws secretsmanager create-secret \
@@ -41,7 +42,7 @@ aws secretsmanager create-secret \
     --secret-string "{\"username\":\"example@example.com\",\"password\":\"EXAMPL3-P4ssw0rd\"}"
 ```
 
-6. Create secret rotation
+1. Create secret rotation
 
 ```bash
 aws secretsmanager rotate-secret \
@@ -50,10 +51,10 @@ aws secretsmanager rotate-secret \
     --rotation-rules "{\"ScheduleExpression\": \"rate(10 days)\"}"
 ```
 
-7. Check that the secret has a rotation lambda configured
+1. Check that the secret has a rotation lambda configured
    1. `aws secretsmanager describe-secret --secret-id MyTestSecret`
 
-8. Check that your secret password was rotated
+1. Check that your secret password was rotated
    1. `aws secretsmanager get-secret-value --secret-id MyTestSecret`
 
 ## Make commands
@@ -72,6 +73,7 @@ In case you don't have [Make](https://www.gnu.org/software/make/) you can still 
 1. Run `make setup` to build and setup your local environment.
 2. Run `make requirements` to generate requirements.txt and requirements-dev.txt files.
 3. Run `make test` to test or `make test-log` to test and print the execution logs.
+4. If you need to refresh the Python and Node lockfiles, run `make update`.
 
 ### How to Deploy
 
@@ -81,11 +83,6 @@ In case you don't have [Make](https://www.gnu.org/software/make/) you can still 
 
 ### FAQ
 
-* The password isn't updating:
-  * Go to AWS > Lambda > Functions > LdapPasswordRotation
-    * Open Monitoring > "View CloudWatch logs"
-      * Error Message: `check_inputs: Invalid character in`
-        * Check if your current user or password has any of the `EXCLUDE_CHARACTERS`
-        * Update the `EXCLUDE_CHARACTERS` rules to your needs
-      * Error Message: `setSecret: Failed to update the password`
-        * Some AD systems limit how often you can rotate the password. For example, you might not be able to change it more than once a day.
+- The password isn't updating: go to AWS > Lambda > Functions > LdapPasswordRotation and open Monitoring > "View CloudWatch logs".
+- If the error message is `check_inputs: Invalid character in`, check whether your current user or password contains any of the `EXCLUDE_CHARACTERS` and update those rules to your needs.
+- If the error message is `setSecret: Failed to update the password`, your AD system may limit how often you can rotate the password. For example, it might not allow more than one password change per day.

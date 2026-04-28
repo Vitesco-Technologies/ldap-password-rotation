@@ -5,3 +5,4 @@ node_modules
 .pytest_cache
 .coverage
 .DS_Store
+__pycache__
