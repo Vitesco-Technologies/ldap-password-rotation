@@ -28,8 +28,8 @@ update: ## Update dependencies
 	uv lock --upgrade
 	uv sync --python=$$(which python3.13)
 	bun update
-	uv export --format requirements.txt --no-hashes --no-dev --output-file requirements.txt
-	uv export --format requirements.txt --no-hashes --all-groups --output-file requirements-dev.txt
+	uv export --quiet --format requirements.txt --no-hashes --no-dev --output-file requirements.txt
+	uv export --quiet --format requirements.txt --no-hashes --all-groups --output-file requirements-dev.txt
 
 .PHONY: deploy
 deploy: ## Deploy with serverless framework
