@@ -76,7 +76,7 @@ pluggy==1.6.0
     #   pytest
     #   pytest-cov
 py4j==0.10.9.9
-pyasn1==0.6.3
+pyasn1==0.6.4
     # via ldap3
 pycparser==2.23 ; python_full_version < '3.10' and implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
