@@ -113,7 +113,7 @@ responses==0.26.0
     # via moto
 s3transfer==0.16.1
     # via boto3
-setuptools==82.0.1
+setuptools==83.0.0
     # via coverage-badge
 six==1.17.0
     # via python-dateutil
