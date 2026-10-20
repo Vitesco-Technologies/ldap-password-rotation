@@ -109,7 +109,7 @@ requests==2.33.1 ; python_full_version >= '3.10'
     #   docker
     #   moto
     #   responses
-responses==0.26.0
+responses==0.26.1
     # via moto
 s3transfer==0.16.1
     # via boto3
