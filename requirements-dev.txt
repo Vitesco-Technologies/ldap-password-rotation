@@ -71,7 +71,7 @@ platformdirs==4.4.0 ; python_full_version < '3.10'
     # via black
 platformdirs==4.9.6 ; python_full_version >= '3.10'
     # via black
-pluggy==1.6.0
+pluggy==1.7.0
     # via
     #   pytest
     #   pytest-cov
