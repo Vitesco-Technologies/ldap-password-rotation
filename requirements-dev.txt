@@ -61,7 +61,7 @@ mock==5.2.0
 moto==5.1.22
 mypy-extensions==1.1.0
     # via black
-packaging==26.2
+packaging==26.3
     # via
     #   black
     #   pytest
